@@ -1,4 +1,12 @@
-export type ReportType = "profit_loss" | "sku_pnl_orders_pnl" | "returns" | "gst" | "unknown";
+export type ReportType =
+  | "profit_loss"
+  | "returns"
+  | "gst"
+  | "inventory"
+  | "orders"
+  | "settlement"
+  | "sku_pnl_orders_pnl"
+  | "unknown";
 
 export interface ReportTypeOption {
   id: ReportType;
@@ -44,13 +52,31 @@ export interface OverallSummaryMetadata {
   rawMetadata?: Record<string, string>;
 }
 
-export interface WorkbookDetectionResult {
+export interface ReportMetadata {
+  reportType: ReportType;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  generatedAt: Date | null;
+  filename: string;
+  uploadedAt: Date;
+}
+
+export interface ReportDetectionResult {
+  type: ReportType;
+  confidence: number;
+  version: string | null;
+  sheets: string[];
+  warnings: string[];
+  errors: string[];
+  suggestedOption?: ReportTypeOption | null;
+  overallSummary?: OverallSummaryMetadata | null;
+}
+
+// Backwards compatibility alias
+export interface WorkbookDetectionResult extends ReportDetectionResult {
   detectedType: ReportType;
-  confidence: "high" | "medium" | "low" | "none";
   sheetNames: string[];
   matchingSheets: string[];
-  suggestedOption: ReportTypeOption | null;
-  overallSummary?: OverallSummaryMetadata | null;
   validationError?: string | null;
 }
 

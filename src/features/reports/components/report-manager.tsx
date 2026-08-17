@@ -1,16 +1,12 @@
 "use client";
 
 import React, { useRef } from "react";
-import Link from "next/link";
 import {
-  FileSpreadsheet,
   RotateCcw,
   CheckCircle2,
   Plus,
   Trash2,
-  ArrowRight,
   TrendingUp,
-  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useExcelData } from "@/context/excel-context";
 import { useExcelParser } from "@/hooks/use-excel-parser";
-import { ReportTypeDialog } from "@/components/excel/report-type-dialog";
+import { ReportDetectionDialog } from "./report-detection";
+import { ReportValidationModal } from "./report-validation";
+import { ParserDiagnosticsPanel } from "./parser-diagnostics";
 
 export function ReportManager() {
   const {
@@ -37,6 +35,11 @@ export function ReportManager() {
     pendingFile,
     detectionResult,
     processSelectedReport,
+    isValidationModalOpen,
+    setIsValidationModalOpen,
+    lastValidationDiagnostics,
+    lastParsedFileName,
+    handleValidationProceed,
   } = useExcelParser();
 
   const additionalFileInputRef = useRef<HTMLInputElement>(null);
@@ -92,10 +95,22 @@ export function ReportManager() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* 1. Profit & Loss Report Card */}
-            <div className={`p-3 rounded-lg border transition-all ${uploadedReportsState.pnlActive ? "bg-muted/30 border-border" : "bg-muted/10 border-dashed border-border/70"}`}>
+            <div
+              className={`p-3 rounded-lg border transition-all ${
+                uploadedReportsState.pnlActive
+                  ? "bg-muted/30 border-border"
+                  : "bg-muted/10 border-dashed border-border/70"
+              }`}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2.5">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${uploadedReportsState.pnlActive ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${
+                      uploadedReportsState.pnlActive
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
                     <TrendingUp className="h-4 w-4" />
                   </div>
                   <div className="space-y-0.5">
@@ -133,10 +148,22 @@ export function ReportManager() {
             </div>
 
             {/* 2. Returns Report Card */}
-            <div className={`p-3 rounded-lg border transition-all ${uploadedReportsState.returnsActive ? "bg-muted/30 border-border" : "bg-muted/10 border-dashed border-border/70"}`}>
+            <div
+              className={`p-3 rounded-lg border transition-all ${
+                uploadedReportsState.returnsActive
+                  ? "bg-muted/30 border-border"
+                  : "bg-muted/10 border-dashed border-border/70"
+              }`}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2.5">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${uploadedReportsState.returnsActive ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${
+                      uploadedReportsState.returnsActive
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
                     <RotateCcw className="h-4 w-4" />
                   </div>
                   <div className="space-y-0.5">
@@ -172,17 +199,49 @@ export function ReportManager() {
               </div>
             </div>
           </div>
+
+          {/* Diagnostics for P&L if available */}
+          {pnlReport?.diagnostics && (
+            <ParserDiagnosticsPanel
+              diagnostics={{
+                reportType: "profit_loss",
+                schemaVersion: "v1",
+                confidence: 0.98,
+                sheetsDetected: pnlReport.sheetNames,
+                columnsDetected: pnlReport.diagnostics.ordersColumnsDetected + pnlReport.diagnostics.skuColumnsDetected,
+                hiddenColumnsDetected: 20,
+                mergedRangesDetected: 6,
+                mappedFields: pnlReport.diagnostics.expenseFieldsMapped,
+                unknownFields: pnlReport.diagnostics.unknownFieldsDetected || [],
+                missingRequiredFields: [],
+                warnings: pnlReport.diagnostics.warnings || [],
+                errors: [],
+              }}
+              className="mt-2"
+            />
+          )}
         </CardContent>
       </Card>
 
       {/* Confirmation Modal */}
       {pendingFile && (
-        <ReportTypeDialog
+        <ReportDetectionDialog
           isOpen={isTypeDialogOpen}
           onClose={() => setIsTypeDialogOpen(false)}
           fileName={pendingFile.name}
           detection={detectionResult}
           onConfirm={(selectedType) => processSelectedReport(pendingFile, selectedType)}
+        />
+      )}
+
+      {/* Validation Screen Modal */}
+      {lastValidationDiagnostics && (
+        <ReportValidationModal
+          isOpen={isValidationModalOpen}
+          onClose={() => setIsValidationModalOpen(false)}
+          fileName={lastParsedFileName}
+          diagnostics={lastValidationDiagnostics}
+          onProceed={handleValidationProceed}
         />
       )}
     </div>

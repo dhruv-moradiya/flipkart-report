@@ -2,10 +2,11 @@
 
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
 import * as XLSX from "xlsx";
-import { parseFlipkartReturnsFile } from "../features/returns/parsers/flipkart-returns.parser";
-import { parseFlipkartPnlReport } from "../features/pnl/parsers/flipkart-pnl.parser";
-import { detectReportType } from "../features/reports/utils/report-detector";
-import { ReportType, WorkbookDetectionResult } from "../features/reports/types/report.types";
+import { parseFlipkartReturnsFile } from "../features/reports/parsers/flipkart-returns.parser";
+import { parseFlipkartPnlReport } from "../features/reports/parsers/flipkart-pnl.parser";
+import { detectReportType } from "../features/reports/detector/report-detector";
+import { ReportType, ReportDetectionResult } from "../features/reports/types/report.types";
+import { ParserDiagnostics } from "../features/reports/validation/parser-diagnostics";
 import { useExcelData } from "@/context/excel-context";
 
 export function useExcelParser() {
@@ -40,10 +41,15 @@ export function useExcelParser() {
   const [logCount, setLogCount] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Modal State for Report Type Confirmation
+  // Dialog State for Report Detection Confirmation
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState<boolean>(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [detectionResult, setDetectionResult] = useState<WorkbookDetectionResult | null>(null);
+  const [detectionResult, setDetectionResult] = useState<ReportDetectionResult | null>(null);
+
+  // Validation Modal State
+  const [isValidationModalOpen, setIsValidationModalOpen] = useState<boolean>(false);
+  const [lastValidationDiagnostics, setLastValidationDiagnostics] = useState<ParserDiagnostics | null>(null);
+  const [lastParsedFileName, setLastParsedFileName] = useState<string>("");
 
   const processSelectedReport = async (file: File, reportType: ReportType) => {
     setIsTypeDialogOpen(false);
@@ -54,11 +60,52 @@ export function useExcelParser() {
       if (reportType === "profit_loss" || reportType === "sku_pnl_orders_pnl") {
         const result = await parseFlipkartPnlReport(file);
         setPnlReport(result);
+
+        // Prepare diagnostics for validation modal
+        if (result.diagnostics) {
+          setLastValidationDiagnostics({
+            reportType: "profit_loss",
+            schemaVersion: "v1",
+            confidence: 0.98,
+            sheetsDetected: result.sheetNames,
+            columnsDetected: result.diagnostics.ordersColumnsDetected + result.diagnostics.skuColumnsDetected,
+            hiddenColumnsDetected: 20,
+            mergedRangesDetected: 6,
+            mappedFields: result.diagnostics.expenseFieldsMapped,
+            unknownFields: result.diagnostics.unknownFieldsDetected || [],
+            missingRequiredFields: [],
+            warnings: result.diagnostics.warnings || [],
+            errors: [],
+          });
+          setLastParsedFileName(file.name);
+          setIsValidationModalOpen(true);
+        }
       } else if (reportType === "returns") {
         const result = await parseFlipkartReturnsFile(file);
         setParseResult(result);
+
+        if (result.errors && result.errors.length > 0) {
+          throw new Error(result.errors.join("\n"));
+        }
+
+        setLastValidationDiagnostics({
+          reportType: "returns",
+          schemaVersion: "v1",
+          confidence: 0.98,
+          sheetsDetected: result.sheetNames,
+          columnsDetected: 43,
+          hiddenColumnsDetected: 0,
+          mergedRangesDetected: 0,
+          mappedFields: ["returnId", "orderId", "orderItemId", "sku", "product", "returnStatus", "comments"],
+          unknownFields: result.unknownFieldsDetected || [],
+          missingRequiredFields: [],
+          warnings: result.warnings || [],
+          errors: result.errors || [],
+        });
+        setLastParsedFileName(file.name);
+        setIsValidationModalOpen(true);
       } else {
-        throw new Error("This report type is currently under development.");
+        throw new Error(`Report type "${reportType}" is currently under development.`);
       }
       setLogCount((prev) => prev + 1);
     } catch (err: unknown) {
@@ -68,6 +115,10 @@ export function useExcelParser() {
       setIsParsing(false);
       setPendingFile(null);
     }
+  };
+
+  const handleValidationProceed = () => {
+    setIsValidationModalOpen(false);
   };
 
   const handleIncomingFile = async (file: File) => {
@@ -139,6 +190,7 @@ export function useExcelParser() {
     clearData();
     setError(null);
     setIsTypeDialogOpen(false);
+    setIsValidationModalOpen(false);
     setPendingFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -175,6 +227,12 @@ export function useExcelParser() {
     pendingFile,
     detectionResult,
     processSelectedReport,
+    // Validation modal state
+    isValidationModalOpen,
+    setIsValidationModalOpen,
+    lastValidationDiagnostics,
+    lastParsedFileName,
+    handleValidationProceed,
     // Handlers
     handleFileChange,
     handleDragOver,

@@ -95,11 +95,11 @@ function runTest() {
   XLSX.utils.book_append_sheet(wb, ordersWs, "Orders P&L");
 
   const detection = detectReportType(wb);
-  console.log("✓ Detected Report Type:", detection.detectedType);
+  console.log("✓ Detected Report Type:", detection.type);
   console.log("✓ Orders Period:", detection.overallSummary?.ordersReceivedPeriod);
 
-  if (detection.detectedType !== "profit_loss") {
-    throw new Error(`Expected profit_loss detection, got ${detection.detectedType}`);
+  if (detection.type !== "profit_loss") {
+    throw new Error(`Expected profit_loss detection, got ${detection.type}`);
   }
 
   // 5. Parse SKU and Orders

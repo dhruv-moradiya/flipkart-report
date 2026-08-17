@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useExcelParser } from "@/hooks/use-excel-parser";
 import { ReportTypeDialog } from "./report-type-dialog";
+import { ReportValidationModal } from "@/features/reports/components/report-validation";
 
 export function FileDropzone() {
   const {
@@ -24,6 +25,11 @@ export function FileDropzone() {
     pendingFile,
     detectionResult,
     processSelectedReport,
+    isValidationModalOpen,
+    setIsValidationModalOpen,
+    lastValidationDiagnostics,
+    lastParsedFileName,
+    handleValidationProceed,
   } = useExcelParser();
 
   return (
@@ -52,7 +58,7 @@ export function FileDropzone() {
           <div className="flex flex-col items-center justify-center space-y-3 py-4">
             <Spinner className="h-8 w-8 text-primary" />
             <p className="text-sm font-medium text-muted-foreground">
-              Inspecting Flipkart report structure...
+              Inspecting Flipkart report structure & multi-row headers...
             </p>
           </div>
         ) : (
@@ -98,6 +104,17 @@ export function FileDropzone() {
           fileName={pendingFile.name}
           detection={detectionResult}
           onConfirm={(selectedType) => processSelectedReport(pendingFile, selectedType)}
+        />
+      )}
+
+      {/* Post-Ingestion Validation Screen */}
+      {lastValidationDiagnostics && (
+        <ReportValidationModal
+          isOpen={isValidationModalOpen}
+          onClose={() => setIsValidationModalOpen(false)}
+          fileName={lastParsedFileName}
+          diagnostics={lastValidationDiagnostics}
+          onProceed={handleValidationProceed}
         />
       )}
     </div>

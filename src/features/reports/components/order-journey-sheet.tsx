@@ -30,43 +30,23 @@ import {
   ArrowRight,
   Sparkles,
   CreditCard,
+  MessageSquare,
+  ShieldCheck,
 } from "lucide-react";
 import { useExcelData } from "@/context/excel-context";
-import { OrderJourney, OrderJourneyItem, JourneyTimelineEvent } from "../types/journey.types";
-
-function formatINR(val: number): string {
-  if (val === 0) return "₹0";
-  const absVal = Math.abs(val);
-  const formatted = new Intl.NumberFormat("en-IN", {
-    maximumFractionDigits: 2,
-  }).format(absVal);
-  return val < 0 ? `-₹${formatted}` : `₹${formatted}`;
-}
-
-function formatDate(dateStr?: string | Date | null): string {
-  if (!dateStr) return "—";
-  try {
-    const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-    return d.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return String(dateStr);
-  }
-}
+import { OrderJourney, OrderJourneyItem, JourneyTimelineEvent } from "../models/journey.models";
+import { FinancialBreakdownView } from "./financial-breakdown";
+import { formatINR } from "../excel/value-parser";
+import { formatDate } from "../excel/date-parser";
 
 export function OrderJourneySheet() {
   const { activeJourney, closeOrderJourney, uploadedReportsState } = useExcelData();
   const [selectedItemIdx, setSelectedItemIdx] = useState<number>(0);
-  const [showFeeBreakup, setShowFeeBreakup] = useState<boolean>(false);
 
   if (!activeJourney) return null;
 
   const currentItem: OrderJourneyItem = activeJourney.items[selectedItemIdx] || activeJourney.items[0];
-  const { financials, transactions, timeline, skuPerformance, returnRecord, orderPnlRecord } = currentItem;
-  console.log('currentItem :>> ', currentItem);
+  const { financials, transactions, timeline, skuPerformance, returnRecord, orderPnlRecord, relationship } = currentItem;
 
   return (
     <Sheet open={Boolean(activeJourney)} onOpenChange={(open) => !open && closeOrderJourney()}>
@@ -74,9 +54,9 @@ export function OrderJourneySheet() {
         side="right"
         className="w-full sm:min-w-3xl lg:min-w-4xl xl:min-w-5xl overflow-y-auto p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl gap-0"
       >
-        {/* Sticky Header */}
-        <SheetHeader className="p-6 border-b border-border bg-card/70 sticky top-0 z-20 backdrop-blur-md">
-          <div className="flex flex-col gap-4 pr-8">
+        {/* Sticky Top Header */}
+        <SheetHeader className="p-6 border-b border-border bg-card/80 sticky top-0 z-20 backdrop-blur-md">
+          <div className="flex flex-col gap-3 pr-8">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 Complete Order Journey
@@ -85,13 +65,13 @@ export function OrderJourneySheet() {
               {currentItem.hasReturn && (
                 <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-1">
                   <RotateCcw className="h-3 w-3" />
-                  {returnRecord?.returnType || "Customer Return"}
+                  {returnRecord?.returnType === "courier_return" ? "Courier Return (RTO)" : "Customer Return (RVP)"}
                 </Badge>
               )}
               {uploadedReportsState.bothActive && (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
                   <Sparkles className="h-3 w-3" />
-                  P&L + Returns Unified
+                  Unified Cross-Report Match
                 </Badge>
               )}
             </div>
@@ -124,7 +104,7 @@ export function OrderJourneySheet() {
           {/* Multi-Item Selector Tabs (if order has >1 items) */}
           {activeJourney.items.length > 1 && (
             <div className="flex items-center gap-2 pt-3 border-t border-border mt-3 overflow-x-auto">
-              <span className="text-xs text-muted-foreground font-medium shrink-0">Items:</span>
+              <span className="text-xs text-muted-foreground font-medium shrink-0">Order Items:</span>
               {activeJourney.items.map((item, idx) => (
                 <Button
                   key={item.orderItemId}
@@ -141,10 +121,51 @@ export function OrderJourneySheet() {
           )}
         </SheetHeader>
 
-        {/* Body Content */}
+        {/* Scrollable Body Content */}
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6 max-w-5xl mx-auto">
-            {/* 1. Visual Order Lifecycle Timeline */}
+            {/* 1. Data Source Transparency Bar */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Financials:</span>
+                  {currentItem.hasPnl ? (
+                    <span className="font-medium text-foreground flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> P&L Report
+                    </span>
+                  ) : (
+                    <span className="text-amber-500 flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" /> P&L Not Uploaded
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Reverse Logistics:</span>
+                  {currentItem.hasReturn ? (
+                    <span className="font-medium text-foreground flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Returns Report (Matched by {relationship?.source === "order_item_id" ? "Order Item ID" : "Order ID"})
+                    </span>
+                  ) : uploadedReportsState.returnsActive ? (
+                    <span className="text-muted-foreground italic">
+                      No matching return record in Returns report
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" /> Returns Report Not Uploaded
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {skuPerformance && (
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  SKU Context Attached
+                </Badge>
+              )}
+            </div>
+
+            {/* 2. Visual Order Lifecycle Timeline */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
                 <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
@@ -163,7 +184,6 @@ export function OrderJourneySheet() {
 
                   return (
                     <div key={idx} className="relative group">
-                      {/* Timeline Dot */}
                       <div
                         className={`absolute -left-4.75 top-1 h-3 w-3 rounded-full border-2 border-background ${
                           isCancel
@@ -204,20 +224,22 @@ export function OrderJourneySheet() {
                   <div className="relative pt-1">
                     <div className="absolute -left-4.75 top-2 h-3 w-3 rounded-full border-2 border-background bg-muted-foreground/40" />
                     <span className="text-xs text-muted-foreground italic">
-                      No customer return or courier return associated with this item.
+                      {orderPnlRecord && (orderPnlRecord.returnedCancelledUnits > 0 || orderPnlRecord.rvpUnits > 0)
+                        ? "P&L indicates return/cancellation, but detailed tracking events were not found in the uploaded Returns report."
+                        : "No customer return or courier return associated with this item."}
                     </span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* 2. Product Identity & SKU Performance Context */}
+            {/* 3. Product Details & SKU Performance Context */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Product Identity */}
               <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
                 <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider border-b border-border pb-2.5">
                   <Package className="h-4 w-4" />
-                  <span>Product Item Details</span>
+                  <span>Product & Order Item Details</span>
                 </div>
                 <dl className="space-y-2 text-xs">
                   <div className="flex justify-between items-center">
@@ -236,6 +258,14 @@ export function OrderJourneySheet() {
                       <CopyButton text={currentItem.orderItemId} variant="ghost" size="icon" className="h-5 w-5" />
                     </dd>
                   </div>
+                  {returnRecord?.product && (
+                    <div className="flex justify-between items-start gap-2">
+                      <dt className="text-muted-foreground shrink-0">Product Title:</dt>
+                      <dd className="font-medium text-foreground text-right text-[11px] truncate max-w-[240px]">
+                        {returnRecord.product}
+                      </dd>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Quantity:</dt>
                     <dd className="font-medium text-foreground">{currentItem.grossUnits} unit(s)</dd>
@@ -276,7 +306,9 @@ export function OrderJourneySheet() {
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">Ret + Canc Units:</dt>
-                      <dd className="font-mono text-foreground">{skuPerformance.returnedCancelledUnits} ({skuPerformance.returnRate}%)</dd>
+                      <dd className="font-mono text-foreground">
+                        {skuPerformance.returnedCancelledUnits} ({skuPerformance.returnRate}%)
+                      </dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">Portfolio Net Sales:</dt>
@@ -299,146 +331,10 @@ export function OrderJourneySheet() {
               </div>
             </div>
 
-            {/* 3. Detailed Financial Journey (P&L Waterfall) */}
-            <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between border-b border-border pb-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
-                  <IndianRupee className="h-4 w-4" />
-                  <span>Item Financial Breakdown & Economics</span>
-                </div>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Source: Orders P&L
-                </span>
-              </div>
+            {/* 4. Detailed Financial Journey (P&L Waterfall with Negative Fees) */}
+            <FinancialBreakdownView financials={financials} />
 
-              {/* 4-Step Key Financial Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Selling Price</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs max-w-xs">
-                        Final Selling Price: Unconditional listing price visible to customers.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-base font-bold font-mono text-foreground">{formatINR(financials.finalSellingPrice)}</p>
-                  <p className="text-[10px] text-muted-foreground">Item Value: {formatINR(financials.orderItemValue)}</p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Expenses</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs max-w-xs">
-                        Total Marketplace fees charged against the order item.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-base font-bold font-mono text-foreground">{formatINR(financials.totalExpenses)}</p>
-                  <p className="text-[10px] text-muted-foreground">Benefits: {formatINR(financials.totalBenefits)}</p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Net Earnings</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs max-w-xs">
-                        Net Earnings = Final Bank Settlement + Input Tax Credits.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="text-base font-bold font-mono text-foreground">{formatINR(financials.netEarnings)}</p>
-                  <p className="text-[10px] text-muted-foreground">ITC: {formatINR(financials.inputTaxCredits)}</p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Settled / Pending</span>
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <p className="text-base font-bold font-mono text-foreground">{formatINR(financials.amountSettled)}</p>
-                  <p className="text-[10px] text-muted-foreground">Pending: {formatINR(financials.amountPending)}</p>
-                </div>
-              </div>
-
-              {/* Collapsible Detailed Fee Breakdown */}
-              <div className="pt-2 border-t border-border">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowFeeBreakup(!showFeeBreakup)}
-                  className="text-xs h-7 gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  {showFeeBreakup ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  {showFeeBreakup ? "Hide Fee Breakups" : "View Detailed Fee & Tax Breakups"}
-                </Button>
-
-                {showFeeBreakup && (
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs bg-muted/20 p-3.5 rounded-lg border border-border">
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Commission Fee</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.commissionFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Fixed Fee</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.fixedFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Collection Fee</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.collectionFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Pick & Pack Fee</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.pickAndPackFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Forward Shipping</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.forwardShippingFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Reverse Shipping</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.reverseShippingFee)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Offer Adjustments</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.expensesBreakup.offerAdjustments || 0)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Storage & Recall</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR((financials.expensesBreakup.storageFee || 0) + (financials.expensesBreakup.recallFee || 0))}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Taxes (GST)</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.taxes.gst)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Taxes (TCS)</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.taxes.tcs)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Taxes (TDS)</span>
-                      <p className="font-mono font-medium text-foreground">{formatINR(financials.taxes.tds)}</p>
-                    </div>
-                    <div className="p-2 bg-background/50 rounded border border-border/50">
-                      <span className="text-[10px] text-muted-foreground block">Total Taxes (GST+TCS+TDS)</span>
-                      <p className="font-mono font-bold text-foreground">{formatINR(financials.taxes.gst + financials.taxes.tcs + financials.taxes.tds)}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 4. Settlement History & Transactions */}
+            {/* 5. Settlement History & Transactions */}
             {transactions.length > 0 && (
               <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
                 <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider border-b border-border pb-2.5">
@@ -485,13 +381,13 @@ export function OrderJourneySheet() {
               </div>
             )}
 
-            {/* 5. Return Lifecycle & Comments (from Returns Report) */}
+            {/* 6. Return Lifecycle & Verbatim Comments */}
             {returnRecord ? (
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between border-b border-destructive/20 pb-2.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
                     <RotateCcw className="h-4 w-4 text-destructive" />
-                    <span>Flipkart Returns Report Record</span>
+                    <span>Flipkart Returns Report Details</span>
                   </div>
                   <Badge variant="destructive" className="text-[10px]">
                     Return ID: {returnRecord.returnId}
@@ -515,14 +411,28 @@ export function OrderJourneySheet() {
                     <dt className="text-muted-foreground">Tracking ID:</dt>
                     <dd className="font-mono text-foreground">{returnRecord.trackingId || "—"}</dd>
                   </div>
-                  {returnRecord.comments && (
-                    <div className="sm:col-span-2 p-2.5 rounded-lg bg-background border border-border">
-                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Customer / Inspection Comments:
-                      </dt>
-                      <dd className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">
-                        {returnRecord.comments}
-                      </dd>
+
+                  {/* Operational Customer / Inspection Comments strictly preserved */}
+                  <div className="sm:col-span-2 p-3 rounded-lg bg-background border border-border space-y-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                      <span>Customer / Hub Comments:</span>
+                    </div>
+                    <dd className="text-xs text-foreground font-normal whitespace-pre-wrap leading-relaxed">
+                      {returnRecord.comments ? returnRecord.comments : "—"}
+                    </dd>
+                  </div>
+
+                  {returnRecord.finalCondition && (
+                    <div>
+                      <dt className="text-muted-foreground">Returned Product Condition:</dt>
+                      <dd className="font-medium text-foreground">{returnRecord.finalCondition}</dd>
+                    </div>
+                  )}
+                  {returnRecord.vendorName && (
+                    <div>
+                      <dt className="text-muted-foreground">Vendor / Warehouse:</dt>
+                      <dd className="font-medium text-foreground">{returnRecord.vendorName} ({returnRecord.locationName})</dd>
                     </div>
                   )}
                 </dl>
@@ -531,7 +441,7 @@ export function OrderJourneySheet() {
               !uploadedReportsState.returnsActive && (
                 <div className="rounded-xl border border-dashed border-border bg-muted/10 p-4 text-xs text-muted-foreground flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
                     <span>Detailed return lifecycle not connected. Upload a Flipkart Returns report to view full reverse logistics.</span>
                   </div>
                 </div>

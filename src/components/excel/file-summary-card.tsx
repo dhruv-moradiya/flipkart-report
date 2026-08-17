@@ -13,6 +13,7 @@ import {
   Layers,
   FileSpreadsheet,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,21 +66,40 @@ export function FileSummaryCard() {
       )}
 
       {/* 3. Action CTAs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Dedicated Multi-Route Analytics Link */}
+        <div className="flex flex-col justify-between rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3 shadow-xs">
+          <div>
+            <div className="flex items-center gap-2 font-bold text-foreground text-sm">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Multi-Route Analytics
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Explore 9 dedicated analytics sections: SKU, Products, Orders, Returns, Financials, Fees, Settlements & Correlations.
+            </p>
+          </div>
+          <Button asChild variant="default" size="sm" className="w-full gap-2 cursor-pointer">
+            <Link href="/analytics/overview">
+              Open Analytics Suite
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
         {pnlReport && (
           <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
             <div>
               <div className="flex items-center gap-2 font-medium text-foreground text-sm">
                 <TableIcon className="h-4 w-4 text-foreground" />
-                P&L Analytics Platform
+                P&L Data Tables
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Explore individual SKU financial metrics, order economics, settlement status, and connected SKU-to-order journeys.
               </p>
             </div>
-            <Button asChild variant="default" size="sm" className="w-full gap-2 cursor-pointer">
+            <Button asChild variant="outline" size="sm" className="w-full gap-2 cursor-pointer bg-background">
               <Link href="/pnl">
-                Open P&L Dashboard
+                Open P&L Tables
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
