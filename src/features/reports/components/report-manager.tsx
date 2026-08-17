@@ -8,10 +8,20 @@ import {
   Trash2,
   TrendingUp,
   Sparkles,
+  FileSpreadsheet,
+  UploadCloud,
+  Layers,
+  ShoppingBag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CopyButton } from "@/components/copy-button";
 import { useExcelData } from "@/context/excel-context";
 import { useExcelParser } from "@/hooks/use-excel-parser";
 import { ReportDetectionDialog } from "./report-detection";
@@ -53,154 +63,255 @@ export function ReportManager() {
 
   return (
     <div className="space-y-4">
-      {/* Uploaded Reports Summary Box */}
-      <Card className="border border-border bg-card shadow-xs">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Active Flipkart Datasets
-              </span>
-              {uploadedReportsState.bothActive ? (
-                <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  Complete Order Journey Active
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                  {uploadedReportsState.pnlActive ? "1 of 2 Uploaded (P&L)" : "1 of 2 Uploaded (Returns)"}
-                </Badge>
-              )}
+      {/* Uploaded Reports Master Container */}
+      <Card className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+        {/* Top Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-border bg-card/60">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="relative flex h-2.5 w-2.5">
+              <span
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  uploadedReportsState.bothActive
+                    ? "bg-emerald-400"
+                    : "bg-primary"
+                }`}
+              />
+              <span
+                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  uploadedReportsState.bothActive
+                    ? "bg-emerald-500"
+                    : "bg-primary"
+                }`}
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                ref={additionalFileInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv"
-                onChange={handleAdditionalFile}
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => additionalFileInputRef.current?.click()}
-                className="h-7 text-xs gap-1.5 bg-background cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Upload Additional Report
-              </Button>
-            </div>
+            <span className="text-xs font-semibold uppercase tracking-[0.02em] text-foreground font-sans">
+              Active Flipkart Datasets
+            </span>
+
+            {uploadedReportsState.bothActive ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium leading-none text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-full font-sans">
+                <Sparkles className="h-3 w-3 text-emerald-500" />
+                Complete Order Journey Active
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium leading-none text-muted-foreground bg-muted border border-border px-2.5 py-1 rounded-full font-sans">
+                {uploadedReportsState.pnlActive
+                  ? "1 of 2 Uploaded (P&L Active)"
+                  : "1 of 2 Uploaded (Returns Active)"}
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* 1. Profit & Loss Report Card */}
-            <div
-              className={`p-3 rounded-lg border transition-all ${
-                uploadedReportsState.pnlActive
-                  ? "bg-muted/30 border-border"
-                  : "bg-muted/10 border-dashed border-border/70"
-              }`}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <input
+              ref={additionalFileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleAdditionalFile}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => additionalFileInputRef.current?.click()}
+              className="h-7.5 text-xs font-medium gap-1.5 bg-background hover:bg-muted cursor-pointer shadow-2xs font-sans"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${
-                      uploadedReportsState.pnlActive
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <TrendingUp className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-foreground">Flipkart Profit & Loss Report</span>
-                      {uploadedReportsState.pnlActive && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
-                      )}
+              <Plus className="h-3.5 w-3.5" />
+              <span>Upload Additional Report</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Dataset Cards Grid */}
+        <CardContent className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* 1. Profit & Loss Report Card */}
+            {uploadedReportsState.pnlActive && pnlReport ? (
+              <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-3 shadow-2xs transition-all hover:border-border/80 relative overflow-hidden group">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                      <TrendingUp className="h-4 w-4" />
                     </div>
-                    {uploadedReportsState.pnlActive && pnlReport ? (
-                      <p className="text-[11px] text-muted-foreground font-mono">
-                        {pnlReport.fileName} • {pnlReport.skuLevel.length} SKUs • {pnlReport.orders.length} Order items
-                        {pnlReport.metadata?.ordersReceivedPeriod && ` • ${pnlReport.metadata.ordersReceivedPeriod}`}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">
-                        Not uploaded yet. Upload to enable order-level economics and SKU profitability.
-                      </p>
-                    )}
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-foreground tracking-[-0.005em] font-sans">
+                          Flipkart Profit & Loss Report
+                        </span>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={clearPnlData}
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Remove P&L Report
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+
+                {/* File info */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono bg-background/60 border border-border/60 rounded-md px-2.5 py-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate max-w-[260px] sm:max-w-[320px]">
+                    {pnlReport.fileName}
+                  </span>
+                  <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                    <CopyButton
+                      text={pnlReport.fileName}
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+                    />
                   </div>
                 </div>
 
-                {uploadedReportsState.pnlActive && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={clearPnlData}
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                    title="Remove P&L Report"
+                {/* Metric Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] font-medium leading-none px-2 py-0.5 tabular-nums font-sans bg-background"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+                    {pnlReport.skuLevel.length} SKUs
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] font-medium leading-none px-2 py-0.5 tabular-nums font-sans bg-background"
+                  >
+                    {pnlReport.orders.length} Order items
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="text-[11px] font-medium leading-none px-2 py-0.5 font-sans"
+                  >
+                    SKU P&L + Orders P&L
+                  </Badge>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                onClick={() => additionalFileInputRef.current?.click()}
+                className="rounded-xl border border-dashed border-border hover:border-primary/50 bg-muted/10 hover:bg-muted/30 p-4 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                    <TrendingUp className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="space-y-0.5 text-left">
+                    <span className="text-xs font-semibold text-foreground block font-sans">
+                      Upload Flipkart Profit & Loss Report
+                    </span>
+                    <p className="text-[11px] text-muted-foreground font-normal">
+                      Click to upload .xlsx report to connect unit economics & SKU waterfall.
+                    </p>
+                  </div>
+                </div>
+                <Plus className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+              </div>
+            )}
 
             {/* 2. Returns Report Card */}
-            <div
-              className={`p-3 rounded-lg border transition-all ${
-                uploadedReportsState.returnsActive
-                  ? "bg-muted/30 border-border"
-                  : "bg-muted/10 border-dashed border-border/70"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5">
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-md shrink-0 ${
-                      uploadedReportsState.returnsActive
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-foreground">Flipkart Returns Report</span>
-                      {uploadedReportsState.returnsActive && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-foreground" />
-                      )}
+            {uploadedReportsState.returnsActive ? (
+              <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-3 shadow-2xs transition-all hover:border-border/80 relative overflow-hidden group">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                      <RotateCcw className="h-4 w-4" />
                     </div>
-                    {uploadedReportsState.returnsActive ? (
-                      <p className="text-[11px] text-muted-foreground font-mono">
-                        {uploadedReportsState.returnsFileName || "Returns Report"} • {records.length.toLocaleString()} Returns tracked
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">
-                        Not uploaded yet. Upload to enable 43-column reverse logistics and return journey tracking.
-                      </p>
-                    )}
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-foreground tracking-[-0.005em] font-sans">
+                          Flipkart Returns Report
+                        </span>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={clearReturnsData}
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      Remove Returns Report
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+
+                {/* File info */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono bg-background/60 border border-border/60 rounded-md px-2.5 py-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate max-w-[260px] sm:max-w-[320px]">
+                    {uploadedReportsState.returnsFileName || "Returns Report"}
+                  </span>
+                  <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                    <CopyButton
+                      text={uploadedReportsState.returnsFileName || ""}
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer"
+                    />
                   </div>
                 </div>
 
-                {uploadedReportsState.returnsActive && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={clearReturnsData}
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                    title="Remove Returns Report"
+                {/* Metric Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] font-medium leading-none px-2 py-0.5 tabular-nums font-sans bg-background"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
+                    {records.length.toLocaleString()} Returns tracked
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="text-[11px] font-medium leading-none px-2 py-0.5 font-sans"
+                  >
+                    43 Reverse Tracking Columns
+                  </Badge>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                onClick={() => additionalFileInputRef.current?.click()}
+                className="rounded-xl border border-dashed border-border hover:border-primary/50 bg-muted/10 hover:bg-muted/30 p-4 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                    <RotateCcw className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="space-y-0.5 text-left">
+                    <span className="text-xs font-semibold text-foreground block font-sans">
+                      Upload Flipkart Returns Report
+                    </span>
+                    <p className="text-[11px] text-muted-foreground font-normal">
+                      Click to upload .csv / .xlsx report to track reverse logistics & return reasons.
+                    </p>
+                  </div>
+                </div>
+                <Plus className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+              </div>
+            )}
           </div>
 
-          {/* Diagnostics for P&L if available */}
+          {/* Integrated Ingestion Diagnostics Panel */}
           {pnlReport?.diagnostics && (
             <ParserDiagnosticsPanel
               diagnostics={{
@@ -208,7 +319,9 @@ export function ReportManager() {
                 schemaVersion: "v1",
                 confidence: 0.98,
                 sheetsDetected: pnlReport.sheetNames,
-                columnsDetected: pnlReport.diagnostics.ordersColumnsDetected + pnlReport.diagnostics.skuColumnsDetected,
+                columnsDetected:
+                  pnlReport.diagnostics.ordersColumnsDetected +
+                  pnlReport.diagnostics.skuColumnsDetected,
                 hiddenColumnsDetected: 20,
                 mergedRangesDetected: 6,
                 mappedFields: pnlReport.diagnostics.expenseFieldsMapped,
@@ -230,7 +343,9 @@ export function ReportManager() {
           onClose={() => setIsTypeDialogOpen(false)}
           fileName={pendingFile.name}
           detection={detectionResult}
-          onConfirm={(selectedType) => processSelectedReport(pendingFile, selectedType)}
+          onConfirm={(selectedType) =>
+            processSelectedReport(pendingFile, selectedType)
+          }
         />
       )}
 

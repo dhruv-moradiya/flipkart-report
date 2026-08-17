@@ -1,28 +1,63 @@
 "use client";
 
-import React from "react";
-import {
-  Package,
-  IndianRupee,
-  Receipt,
-  RotateCcw,
-  ShoppingBag,
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  Clock,
-} from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
+import { StatusBadge } from "@/components/excel/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { CopyButton } from "@/components/copy-button";
-import { StatusBadge } from "@/components/excel/status-badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useExcelData } from "@/context/excel-context";
+import {
+  ColumnDef,
+  SortingState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Clock,
+  IndianRupee,
+  Package,
+  Receipt,
+  Search,
+  ShoppingBag,
+  TrendingDown,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { SkuPnlAnalytics } from "../types/pnl-analytics.types";
 import { OrderPnlRecord } from "../types/pnl.types";
 
@@ -53,15 +88,514 @@ function MetricBox({
   subLabel?: string;
   isPrice?: boolean;
 }) {
-  const formattedVal = isPrice && typeof value === "number" ? formatINR(value) : String(value);
+  const formattedVal =
+    isPrice && typeof value === "number" ? formatINR(value) : String(value);
 
   return (
     <div className="p-3 rounded-lg bg-muted/20 border border-border/60 space-y-1">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.01em] block font-sans">
         {label}
       </span>
-      <p className="text-sm font-bold font-mono text-foreground">{formattedVal}</p>
-      {subLabel && <p className="text-[11px] text-muted-foreground">{subLabel}</p>}
+      <p className="text-sm font-bold text-foreground tabular-nums font-sans tracking-[-0.02em]">
+        {formattedVal}
+      </p>
+      {subLabel && (
+        <p className="text-[11px] font-normal text-muted-foreground tabular-nums">
+          {subLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SkuOrdersTable({
+  orders,
+  onSelectOrder,
+}: {
+  orders: OrderPnlRecord[];
+  onSelectOrder?: (order: OrderPnlRecord) => void;
+}) {
+  const { openOrderJourney } = useExcelData();
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return orders;
+    const q = searchQuery.toLowerCase().trim();
+    return orders.filter(
+      (o) =>
+        o.orderId.toLowerCase().includes(q) ||
+        o.orderItemId.toLowerCase().includes(q) ||
+        o.orderStatus.toLowerCase().includes(q),
+    );
+  }, [orders, searchQuery]);
+
+  const columns = useMemo<ColumnDef<OrderPnlRecord>[]>(
+    () => [
+      {
+        id: "orderId",
+        accessorKey: "orderId",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="-ml-2 h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 font-sans"
+          >
+            <span>Order ID</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-foreground" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-foreground" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </Button>
+        ),
+        cell: ({ row }) => {
+          const id = row.original.orderId;
+          return (
+            <div className="group/cell flex items-center gap-1.5 max-w-[190px]">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openOrderJourney(id);
+                      onSelectOrder?.(row.original);
+                    }}
+                    className="font-mono text-xs font-bold text-foreground hover:underline cursor-pointer truncate text-left"
+                  >
+                    {id}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="font-mono text-xs max-w-xs"
+                >
+                  Click to open complete Order Journey for {id}
+                </TooltipContent>
+              </Tooltip>
+              <div onClick={(e) => e.stopPropagation()}>
+                <CopyButton
+                  text={id}
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                />
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "orderItemId",
+        accessorKey: "orderItemId",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="-ml-2 h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 font-sans"
+          >
+            <span>Item ID</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-foreground" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-foreground" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </Button>
+        ),
+        cell: ({ row }) => {
+          const itemId = row.original.orderItemId;
+          return (
+            <div className="group/cell flex items-center gap-1.5 max-w-[160px]">
+              <span className="font-mono text-xs text-muted-foreground truncate">
+                {itemId}
+              </span>
+              <div onClick={(e) => e.stopPropagation()}>
+                <CopyButton
+                  text={itemId}
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                />
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "netUnits",
+        accessorKey: "netUnits",
+        header: ({ column }) => (
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                column.toggleSorting(column.getIsSorted() === "asc")
+              }
+              className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 mx-auto font-sans"
+            >
+              <span>Units</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-foreground" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-foreground" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </Button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-center text-xs font-normal tabular-nums">
+            <strong className="text-foreground font-semibold">
+              {row.original.netUnits}
+            </strong>{" "}
+            <span className="text-muted-foreground text-[11px]">
+              / {row.original.grossUnits}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: "finalSellingPrice",
+        accessorKey: "finalSellingPrice",
+        header: ({ column }) => (
+          <div className="text-right">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                column.toggleSorting(column.getIsSorted() === "asc")
+              }
+              className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 ml-auto font-sans"
+            >
+              <span>Selling Price</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-foreground" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-foreground" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </Button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-bold text-foreground tabular-nums tracking-[-0.02em] font-sans">
+            {formatINR(row.original.finalSellingPrice)}
+          </div>
+        ),
+      },
+      {
+        id: "netEarnings",
+        accessorKey: "netEarnings",
+        header: ({ column }) => (
+          <div className="text-right">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                column.toggleSorting(column.getIsSorted() === "asc")
+              }
+              className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 ml-auto font-sans"
+            >
+              <span>Net Earnings</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-foreground" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-foreground" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </Button>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const isProf = row.original.netEarnings >= 0;
+          return (
+            <div
+              className={`text-right font-bold tabular-nums tracking-[-0.02em] font-sans ${
+                isProf ? "text-foreground" : "text-destructive"
+              }`}
+            >
+              {formatINR(row.original.netEarnings)}
+            </div>
+          );
+        },
+      },
+      {
+        id: "orderStatus",
+        accessorKey: "orderStatus",
+        header: ({ column }) => (
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                column.toggleSorting(column.getIsSorted() === "asc")
+              }
+              className="h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 mx-auto font-sans"
+            >
+              <span>Status</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-foreground" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-foreground" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </Button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-center">
+            <StatusBadge
+              status={row.original.orderStatus}
+              className="text-[11px]"
+            />
+          </div>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => (
+          <span className="text-xs font-semibold text-muted-foreground font-sans">
+            Action
+          </span>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                openOrderJourney(row.original.orderId);
+                onSelectOrder?.(row.original);
+              }}
+              className="h-6 text-[11px] font-medium gap-1 px-2 bg-background hover:bg-muted cursor-pointer"
+            >
+              <span>Journey</span>
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [openOrderJourney, onSelectOrder],
+  );
+
+  const table = useReactTable({
+    data: filteredOrders,
+    columns,
+    state: {
+      sorting,
+    },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 5,
+      },
+    },
+  });
+
+  if (orders.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground italic py-4 text-center font-normal">
+        No individual order records matched this SKU in the Orders P&L sheet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {/* Search Filter Header (if > 3 orders) */}
+      {orders.length > 3 && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Filter by Order ID, Item ID, Status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-7.5 text-xs bg-background font-sans"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 font-normal">
+            {filteredOrders.length} order
+            {filteredOrders.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* TanStack Table using Shadcn Table component */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden shadow-2xs">
+        <Table className="w-full text-xs">
+          <TableHeader className="bg-muted/60 border-b border-border">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow
+                key={headerGroup.id}
+                className="hover:bg-transparent border-b border-border"
+              >
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className="py-2 px-3 text-xs font-semibold text-muted-foreground font-sans"
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="text-center py-6 text-muted-foreground font-normal"
+                >
+                  No orders match the search query.
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  onClick={() => {
+                    openOrderJourney(row.original.orderId);
+                    onSelectOrder?.(row.original);
+                  }}
+                  className="hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/60"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className="py-2.5 px-3 align-middle"
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Clean Table Pagination Footer with Page Size Selector */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border bg-muted/20 p-2.5 sm:p-3 text-xs">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span className="text-[11px] font-medium">Rows per page:</span>
+            <NativeSelect
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="h-7 w-16 text-xs bg-background font-sans"
+            >
+              {[5, 10, 20, 50].map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize}
+                </option>
+              ))}
+            </NativeSelect>
+            <span className="hidden sm:inline">•</span>
+            <span className="text-[11px]">
+              Showing{" "}
+              <strong className="text-foreground font-semibold tabular-nums">
+                {table.getRowModel().rows.length}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-foreground font-semibold tabular-nums">
+                {filteredOrders.length}
+              </strong>{" "}
+              orders
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground mr-1 text-[11px] tabular-nums">
+              Page{" "}
+              <strong className="text-foreground font-semibold">
+                {table.getState().pagination.pageIndex + 1}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-foreground font-semibold">
+                {table.getPageCount() || 1}
+              </strong>
+            </span>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 bg-background cursor-pointer"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+                title="First Page"
+              >
+                <ChevronsLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 bg-background cursor-pointer"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                title="Previous Page"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 bg-background cursor-pointer"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                title="Next Page"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 bg-background cursor-pointer"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+                title="Last Page"
+              >
+                <ChevronsRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -86,28 +620,32 @@ export function SkuDetailSheet({
         <SheetHeader className="p-6 border-b border-border bg-card/60 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex flex-col gap-1.5 pr-8">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.01em] font-sans">
                 Product SKU Financial Performance
               </span>
-              <Badge variant={isProfitable ? "secondary" : "destructive"} className="text-[10px] px-1.5 py-0 h-4">
+              <Badge
+                variant={isProfitable ? "secondary" : "destructive"}
+                className="text-[11px] font-medium leading-none px-2 py-0.5"
+              >
                 {isProfitable ? "Profitable" : "Loss-Making"}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
-              <SheetTitle className="text-lg font-bold tracking-tight font-mono text-foreground break-all select-all">
+              <SheetTitle className="text-lg font-semibold tracking-[-0.015em] font-mono text-foreground break-all select-all">
                 {skuData.sku}
               </SheetTitle>
               <CopyButton
                 text={skuData.sku}
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1.5 px-2.5 cursor-pointer"
+                className="h-7 text-xs font-medium gap-1.5 px-2.5 cursor-pointer bg-background"
               >
                 Copy SKU
               </CopyButton>
             </div>
-            <SheetDescription className="text-xs text-muted-foreground">
-              {skuData.netUnits} net units sold • {skuData.relatedOrdersCount} connected orders in Orders P&L
+            <SheetDescription className="text-xs font-normal text-muted-foreground">
+              {skuData.netUnits} net units sold • {skuData.relatedOrdersCount}{" "}
+              connected orders in Orders P&L
             </SheetDescription>
           </div>
         </SheetHeader>
@@ -118,11 +656,14 @@ export function SkuDetailSheet({
             {/* 1. Units & Returns / Cancellations */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
-                  <Package className="h-4 w-4" />
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground tracking-[-0.005em] font-sans">
+                  <Package className="h-4 w-4 text-primary" />
                   <span>Units & Fulfillment Summary</span>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
+                <Badge
+                  variant="outline"
+                  className="text-[11px] font-medium leading-none px-2 py-0.5 tabular-nums"
+                >
                   Return/Cancellation Rate: {skuData.returnRate}%
                 </Badge>
               </div>
@@ -144,18 +685,22 @@ export function SkuDetailSheet({
 
             {/* 2. Financial Economics (Sales, Expenses, Earnings) */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider border-b border-border pb-2.5">
-                <IndianRupee className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground tracking-[-0.005em] font-sans border-b border-border pb-2.5">
+                <IndianRupee className="h-4 w-4 text-primary" />
                 <span>Sales, Expenses & Net Earnings</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 rounded-lg bg-muted/30 border border-border/80 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">Sales Revenue</span>
+                    <span className="text-xs font-semibold text-foreground">
+                      Sales Revenue
+                    </span>
                     <IndianRupee className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-                  <p className="text-xl font-bold font-mono text-foreground">{formatINR(skuData.sales)}</p>
-                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60">
+                  <p className="text-xl font-bold tracking-[-0.025em] text-foreground tabular-nums font-sans">
+                    {formatINR(skuData.sales)}
+                  </p>
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60 font-normal tabular-nums">
                     <p>Accounted: {formatINR(skuData.accountedSales)}</p>
                     <p>Item Value: {formatINR(skuData.orderItemValue)}</p>
                   </div>
@@ -163,25 +708,49 @@ export function SkuDetailSheet({
 
                 <div className="p-3.5 rounded-lg bg-muted/30 border border-border/80 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">Marketplace Expenses</span>
+                    <span className="text-xs font-semibold text-foreground">
+                      Marketplace Expenses
+                    </span>
                     <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-                  <p className="text-xl font-bold font-mono text-foreground">{formatINR(skuData.expenses)}</p>
-                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60">
+                  <p className="text-xl font-bold tracking-[-0.025em] text-foreground tabular-nums font-sans">
+                    {formatINR(skuData.expenses)}
+                  </p>
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60 font-normal tabular-nums">
                     <p>Rewards: {formatINR(skuData.rewards)}</p>
-                    <p>{skuData.sales > 0 ? ((skuData.expenses / skuData.sales) * 100).toFixed(1) : 0}% of sales</p>
+                    <p>
+                      {skuData.sales > 0
+                        ? ((skuData.expenses / skuData.sales) * 100).toFixed(1)
+                        : 0}
+                      % of sales
+                    </p>
                   </div>
                 </div>
 
-                <div className={`p-3.5 rounded-lg border space-y-2 ${isProfitable ? "bg-muted/40 border-border" : "bg-destructive/10 border-destructive/30"}`}>
+                <div
+                  className={`p-3.5 rounded-lg border space-y-2 ${isProfitable ? "bg-muted/40 border-border" : "bg-destructive/10 border-destructive/30"}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">Net Earnings</span>
-                    {isProfitable ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5 text-destructive" />}
+                    <span className="text-xs font-semibold text-foreground">
+                      Net Earnings
+                    </span>
+                    {isProfitable ? (
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5 text-destructive" />
+                    )}
                   </div>
-                  <p className="text-xl font-bold font-mono text-foreground">{formatINR(skuData.earnings)}</p>
-                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60">
+                  <p className="text-xl font-bold tracking-[-0.025em] text-foreground tabular-nums font-sans">
+                    {formatINR(skuData.earnings)}
+                  </p>
+                  <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/60 font-normal tabular-nums">
                     <p>Per Unit: ₹{skuData.earningsPerUnit}</p>
-                    <p>{skuData.sales > 0 ? ((skuData.earnings / skuData.sales) * 100).toFixed(1) : 0}% profit margin</p>
+                    <p>
+                      {skuData.sales > 0
+                        ? ((skuData.earnings / skuData.sales) * 100).toFixed(1)
+                        : 0}
+                      % profit margin
+                    </p>
                   </div>
                 </div>
               </div>
@@ -189,8 +758,8 @@ export function SkuDetailSheet({
 
             {/* 3. Settlement Breakdown */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
-              <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider border-b border-border pb-2.5">
-                <Clock className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground tracking-[-0.005em] font-sans border-b border-border pb-2.5">
+                <Clock className="h-4 w-4 text-primary" />
                 <span>Bank Settlement & Pending Payout</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -209,60 +778,27 @@ export function SkuDetailSheet({
               </div>
             </div>
 
-            {/* 4. Orders Containing This SKU */}
+            {/* 4. Orders Containing This SKU - Powered by TanStack Table & Shadcn */}
             <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
-                  <ShoppingBag className="h-4 w-4" />
-                  <span>Orders Containing this SKU ({skuData.relatedOrdersCount})</span>
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground tracking-[-0.005em] font-sans">
+                  <ShoppingBag className="h-4 w-4 text-primary" />
+                  <span>
+                    Orders Containing this SKU ({skuData.relatedOrdersCount})
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground">Source: Orders P&L</span>
+                <Badge
+                  variant="secondary"
+                  className="text-[11px] font-medium leading-none px-2 py-0.5"
+                >
+                  Orders P&L
+                </Badge>
               </div>
 
-              {skuData.relatedOrders.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-3 text-center">
-                  No individual order records matched this SKU in the Orders P&L sheet.
-                </p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-xs">
-                    <thead className="bg-muted/60 border-b border-border text-muted-foreground font-semibold">
-                      <tr>
-                        <th className="py-2 px-3 text-left">Order ID</th>
-                        <th className="py-2 px-3 text-left">Item ID</th>
-                        <th className="py-2 px-3 text-center">Net Units</th>
-                        <th className="py-2 px-3 text-right">Selling Price</th>
-                        <th className="py-2 px-3 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {skuData.relatedOrders.map((order, idx) => (
-                        <tr
-                          key={`${order.orderItemId}_${idx}`}
-                          onClick={() => onSelectOrder?.(order)}
-                          className="hover:bg-muted/40 transition-colors cursor-pointer"
-                        >
-                          <td className="py-2 px-3 font-mono font-medium text-foreground">
-                            {order.orderId}
-                          </td>
-                          <td className="py-2 px-3 font-mono text-muted-foreground">
-                            {order.orderItemId}
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono font-medium">
-                            {order.netUnits}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-foreground">
-                            {formatINR(order.finalSellingPrice)}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <StatusBadge status={order.orderStatus} className="text-[10px]" />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <SkuOrdersTable
+                orders={skuData.relatedOrders}
+                onSelectOrder={onSelectOrder}
+              />
             </div>
           </div>
         </ScrollArea>

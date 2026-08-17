@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -29,6 +29,45 @@ export default function PnlPage() {
   const { pnlReport, pnlAnalytics, fileName, openOrderJourney } = useExcelData();
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [selectedOrder, setSelectedOrder] = useState<OrderPnlRecord | null>(null);
+
+  // Sync activeTab with URL query params (tab, sku)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const tabParam = url.searchParams.get("tab");
+    const skuParam = url.searchParams.get("sku");
+
+    if (tabParam && ["overview", "skus", "orders"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else if (skuParam) {
+      setActiveTab("skus");
+    }
+
+    const handlePopState = () => {
+      const currentUrl = new URL(window.location.href);
+      const currentTab = currentUrl.searchParams.get("tab");
+      const currentSku = currentUrl.searchParams.get("sku");
+      if (currentTab && ["overview", "skus", "orders"].includes(currentTab)) {
+        setActiveTab(currentTab);
+      } else if (currentSku) {
+        setActiveTab("skus");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("tab") !== tab) {
+        url.searchParams.set("tab", tab);
+        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  };
 
   if (!pnlReport || !pnlAnalytics) {
     return (
@@ -97,7 +136,7 @@ export default function PnlPage() {
         {/* Uploaded Reports Status Bar */}
         <ReportManager />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="bg-muted/60 p-1 border border-border">
             <TabsTrigger value="overview" className="gap-2 text-xs cursor-pointer">
               <BarChart3 className="h-3.5 w-3.5" />
@@ -116,7 +155,7 @@ export default function PnlPage() {
           {/* Tab 1: Financial Overview */}
           <TabsContent value="overview" className="space-y-6">
             <PnlDashboardOverview analytics={pnlAnalytics} />
-            <PnlCharts analytics={pnlAnalytics} onSelectSku={() => setActiveTab("skus")} />
+            <PnlCharts analytics={pnlAnalytics} onSelectSku={() => handleTabChange("skus")} />
           </TabsContent>
 
           {/* Tab 2: SKU Performance Table */}

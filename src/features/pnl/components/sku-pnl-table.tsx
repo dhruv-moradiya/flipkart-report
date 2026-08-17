@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -92,6 +92,56 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
   const [profitabilityFilter, setProfitabilityFilter] = useState<string>("ALL");
   const [selectedSku, setSelectedSku] = useState<SkuPnlAnalytics | null>(null);
 
+  // Sync selectedSku with URL query param `sku`
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const skuParam = url.searchParams.get("sku");
+    if (skuParam) {
+      const match = skus.find((s) => s.sku.toLowerCase() === skuParam.toLowerCase());
+      if (match) {
+        setSelectedSku(match);
+      }
+    }
+
+    const handlePopState = () => {
+      const currentUrl = new URL(window.location.href);
+      const currentSkuParam = currentUrl.searchParams.get("sku");
+      if (currentSkuParam) {
+        const match = skus.find((s) => s.sku.toLowerCase() === currentSkuParam.toLowerCase());
+        setSelectedSku(match || null);
+      } else {
+        setSelectedSku(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [skus]);
+
+  const handleSelectSku = (skuData: SkuPnlAnalytics) => {
+    setSelectedSku(skuData);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("sku") !== skuData.sku) {
+        url.searchParams.set("sku", skuData.sku);
+        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  };
+
+  const handleCloseSku = () => {
+    setSelectedSku(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("sku")) {
+        url.searchParams.delete("sku");
+        url.searchParams.delete("orderId");
+        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  };
+
   const defaultVisibility: VisibilityState = {
     sku: true,
     grossUnits: true,
@@ -162,7 +212,7 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedSku(row.original);
+                      handleSelectSku(row.original);
                     }}
                     className="font-mono text-xs font-semibold text-foreground hover:underline cursor-pointer truncate"
                   >
@@ -386,7 +436,7 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedSku(item);
+                  handleSelectSku(item);
                 }}
                 className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
                 title="View SKU Performance Sheet"
@@ -541,7 +591,7 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
                   return (
                     <TableRow
                       key={row.id}
-                      onClick={() => setSelectedSku(row.original)}
+                      onClick={() => handleSelectSku(row.original)}
                       className={`group transition-colors border-b border-border/70 cursor-pointer ${
                         isEven
                           ? "bg-card hover:bg-muted/70 dark:hover:bg-muted/60"
@@ -660,7 +710,7 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
       {/* Sku Details Side Drawer */}
       <SkuDetailSheet
         isOpen={Boolean(selectedSku)}
-        onClose={() => setSelectedSku(null)}
+        onClose={handleCloseSku}
         skuData={selectedSku}
         onSelectOrder={onSelectOrder}
       />
