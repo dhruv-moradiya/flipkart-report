@@ -456,41 +456,41 @@ function runAnalyticsCalculationsTests() {
 
   console.log(
     "✓ Top Earner SKU:",
-    topEarnings[0].label,
+    topEarnings[0]!.label,
     "Earnings:",
-    topEarnings[0].value,
+    topEarnings[0]!.value,
   );
   console.log(
     "✓ Top Expense SKU:",
-    topExpenses[0].label,
+    topExpenses[0]!.label,
     "Magnitude:",
-    topExpenses[0].value,
+    topExpenses[0]!.value,
     "Signed:",
-    topExpenses[0].secondaryValue,
+    topExpenses[0]!.secondaryValue,
   );
   console.log(
     "✓ Top Return Rate SKU:",
-    topReturnRates[0].label,
+    topReturnRates[0]!.label,
     "Rate:",
-    topReturnRates[0].value + "%",
+    topReturnRates[0]!.value + "%",
   );
   console.log(
     "✓ Top EPU SKU:",
-    topProfitable[0].label,
+    topProfitable[0]!.label,
     "EPU:",
-    topProfitable[0].value,
+    topProfitable[0]!.value,
   );
 
-  if (topEarnings[0].rawKey !== "SKU-A-TOP-EARNER")
+  if (topEarnings[0]!.rawKey !== "SKU-A-TOP-EARNER")
     throw new Error("Expected SKU-A as top earner");
   if (
-    topExpenses[0].value !== 18000 ||
-    topExpenses[0].secondaryValue !== -18000
+    topExpenses[0]!.value !== 18000 ||
+    topExpenses[0]!.secondaryValue !== -18000
   )
     throw new Error("Expense magnitude or sign failed");
-  if (topReturnRates[0].value !== 50)
+  if (topReturnRates[0]!.value !== 50)
     throw new Error(
-      `Expected 50% return rate for SKU-B, got ${topReturnRates[0].value}`,
+      `Expected 50% return rate for SKU-B, got ${topReturnRates[0]!.value}`,
     );
 
   // 3. Test Products Calculations
@@ -499,17 +499,17 @@ function runAnalyticsCalculationsTests() {
   const topRto = getTopProductsByRto(mockSkus, 5);
   console.log(
     "✓ Top Customer Returns (RVP):",
-    topRvp[0].label,
+    topRvp[0]!.label,
     "RVP:",
-    topRvp[0].value,
+    topRvp[0]!.value,
   );
   console.log(
     "✓ Top Logistics Returns (RTO):",
-    topRto[0].label,
+    topRto[0]!.label,
     "RTO:",
-    topRto[0].value,
+    topRto[0]!.value,
   );
-  if (topRvp[0].value !== 12 || topRto[0].value !== 10)
+  if (topRvp[0]!.value !== 12 || topRto[0]!.value !== 10)
     throw new Error("RVP/RTO units mismatch");
 
   // 4. Test Orders Calculations
@@ -538,12 +538,12 @@ function runAnalyticsCalculationsTests() {
   const returnReasons = getTopReturnReasons(mockReturns, 5);
   const subReasons = getTopReturnSubReasons(mockReturns, 5);
   const retTypes = getReturnTypeDistribution(mockReturns);
-  console.log("✓ Return Reason:", returnReasons[0].label);
-  console.log("✓ Return Sub-Reason:", subReasons[0].label);
-  console.log("✓ Return Type Distribution:", retTypes[0].name);
+  console.log("✓ Return Reason:", returnReasons[0]!.label);
+  console.log("✓ Return Sub-Reason:", subReasons[0]!.label);
+  console.log("✓ Return Type Distribution:", retTypes[0]!.name);
   if (
-    returnReasons[0].label !== "Quality Issue" ||
-    subReasons[0].label !== "Defective stitching"
+    returnReasons[0]!.label !== "Quality Issue" ||
+    subReasons[0]!.label !== "Defective stitching"
   ) {
     throw new Error("Returns reasons mismatch");
   }
@@ -556,19 +556,19 @@ function runAnalyticsCalculationsTests() {
   console.log("✓ Total Active Fee Categories:", allFees.length);
   console.log(
     "✓ Top Fee:",
-    allFees[0].label,
+    allFees[0]?.label,
     "Magnitude:",
-    allFees[0].value,
+    allFees[0]?.value,
     "Signed:",
-    allFees[0].secondaryValue,
+    allFees[0]?.secondaryValue,
   );
   console.log(
     "✓ Commission by SKU:",
-    commBySku[0].label,
+    commBySku[0]?.label,
     "Commission:",
-    commBySku[0].value,
+    commBySku[0]?.value,
   );
-  if (allFees.length === 0 || allFees[0].secondaryValue >= 0)
+  if (allFees.length === 0 || (allFees[0]?.secondaryValue ?? 0) >= 0)
     throw new Error("Fee aggregation should preserve negative sign");
 
   // 7. Test Settlements & Cross-report Scatters
