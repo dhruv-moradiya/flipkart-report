@@ -9,13 +9,24 @@ import {
   ShoppingBag,
   BarChart3,
   CheckCircle2,
-  TrendingUp,
+  Calendar,
+  Loader2,
   Table as TableIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import { useExcelData } from "@/context/excel-context";
+import { useReportImports } from "@/hooks/use-report-imports";
+import { useAvailablePeriods } from "@/hooks/use-actual-profit";
 import { PnlDashboardOverview } from "@/features/pnl/components/pnl-dashboard-overview";
 import { PnlCharts } from "@/features/pnl/components/pnl-charts";
 import { SkuPnlTable } from "@/features/pnl/components/sku-pnl-table";
@@ -26,16 +37,30 @@ import { ReportManager } from "@/features/reports/components/report-manager";
 import { OrderPnlRecord } from "@/features/pnl/types/pnl.types";
 
 export default function PnlPage() {
-  const { pnlReport, pnlAnalytics, fileName, openOrderJourney } = useExcelData();
+  const {
+    pnlReport,
+    pnlAnalytics,
+    fileName,
+    openOrderJourney,
+    isDbLoading,
+    activeReportingPeriod,
+    activeReportId,
+    loadReportFromBackend,
+  } = useExcelData();
+
+  const router = useRouter();
+  const { data: allReports = [] } = useReportImports();
+  const { data: availablePeriods = [] } = useAvailablePeriods();
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [selectedOrder, setSelectedOrder] = useState<OrderPnlRecord | null>(null);
 
-  // Sync activeTab with URL query params (tab, sku)
+  // Sync activeTab and Order Journey with URL query params (tab, sku, orderId)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const tabParam = url.searchParams.get("tab");
     const skuParam = url.searchParams.get("sku");
+    const orderIdParam = url.searchParams.get("orderId");
 
     if (tabParam && ["overview", "skus", "orders"].includes(tabParam)) {
       setActiveTab(tabParam);
@@ -43,20 +68,29 @@ export default function PnlPage() {
       setActiveTab("skus");
     }
 
+    if (orderIdParam) {
+      openOrderJourney(orderIdParam);
+    }
+
     const handlePopState = () => {
       const currentUrl = new URL(window.location.href);
       const currentTab = currentUrl.searchParams.get("tab");
       const currentSku = currentUrl.searchParams.get("sku");
+      const currentOrderId = currentUrl.searchParams.get("orderId");
+
       if (currentTab && ["overview", "skus", "orders"].includes(currentTab)) {
         setActiveTab(currentTab);
       } else if (currentSku) {
         setActiveTab("skus");
       }
+      if (currentOrderId) {
+        openOrderJourney(currentOrderId);
+      }
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [openOrderJourney]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -69,6 +103,31 @@ export default function PnlPage() {
     }
   };
 
+  const handlePeriodChange = (newPeriod: string) => {
+    loadReportFromBackend(newPeriod);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("period", newPeriod);
+      window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+    }
+  };
+
+  if (isDbLoading && !pnlReport) {
+    return (
+      <main className="flex min-h-svh w-full items-center justify-center bg-background p-4 text-foreground">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary animate-pulse">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <h2 className="text-base font-bold text-foreground">Loading P&L Dataset from Database</h2>
+          <p className="text-xs text-muted-foreground">
+            Fetching normalized SKU and Order financial records from backend database...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (!pnlReport || !pnlAnalytics) {
     return (
       <main className="flex min-h-svh w-full items-center justify-center bg-background p-4 text-foreground">
@@ -76,9 +135,9 @@ export default function PnlPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <FileSpreadsheet className="h-6 w-6" />
           </div>
-          <h2 className="text-lg font-bold text-foreground">No P&L Report Loaded</h2>
+          <h2 className="text-lg font-bold text-foreground">No P&L Report in Database</h2>
           <p className="text-xs text-muted-foreground">
-            Please upload a valid Flipkart SKU-level P&L + Orders P&L report on the home screen to view analytics.
+            Please upload a Flipkart SKU-level P&L report on the home screen to persist and view financial data.
           </p>
           <Button asChild variant="default" size="sm" className="gap-2 cursor-pointer">
             <Link href="/">
@@ -100,7 +159,7 @@ export default function PnlPage() {
             <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs bg-background cursor-pointer">
               <Link href="/">
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Upload New Report
+                Upload Portal
               </Link>
             </Button>
             <div className="h-4 w-px bg-border hidden sm:block" />
@@ -110,8 +169,8 @@ export default function PnlPage() {
                   Flipkart SKU-level P&L + Orders P&L
                 </h1>
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Live Reducer Engine
+                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                  Database Source
                 </Badge>
               </div>
               <p className="text-[11px] text-muted-foreground font-mono">
@@ -121,6 +180,27 @@ export default function PnlPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Report Selector Dropdown */}
+            {allReports.length > 0 && (
+              <Select
+                value={activeReportId || allReports[0]?._id}
+                onValueChange={(newId) => router.push(`/pnl/${newId}`)}
+              >
+                <SelectTrigger className="h-7 text-xs w-[170px] font-medium bg-background border-border">
+                  <Calendar className="h-3.5 w-3.5 mr-1 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Select Report" />
+                </SelectTrigger>
+                <SelectContent className="text-xs max-h-60">
+                  {allReports.map((r) => (
+                    <SelectItem key={r._id} value={r._id}>
+                      <span className="font-semibold">{r.periodLabel}</span>{" "}
+                      <span className="text-[10px] text-muted-foreground">({r.fileName.slice(0, 16)}...)</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono">
               Net Earnings: ₹{pnlAnalytics.overview.totalNetEarnings.toLocaleString()}
             </Badge>
@@ -163,7 +243,7 @@ export default function PnlPage() {
             <div className="space-y-1">
               <h2 className="text-sm font-bold text-foreground">SKU Financial Performance Directory</h2>
               <p className="text-xs text-muted-foreground">
-                Official Flipkart SKU metrics from <code className="bg-muted px-1 py-0.5 rounded font-mono">{pnlReport.skuSheetName}</code>. Click any row to view full financial cards and connected orders.
+                Official Flipkart SKU metrics from database. Click any row to view full financial cards and connected orders.
               </p>
             </div>
             <SkuPnlTable
@@ -178,7 +258,7 @@ export default function PnlPage() {
             <div className="space-y-1">
               <h2 className="text-sm font-bold text-foreground">Orders P&L Individual Journey Table</h2>
               <p className="text-xs text-muted-foreground">
-                Individual order items from <code className="bg-muted px-1 py-0.5 rounded font-mono">{pnlReport.ordersSheetName}</code>. Click any <strong>Order ID</strong> to view the complete Order Journey with connected return tracking.
+                Individual order items from database. Click any <strong>Order ID</strong> to view the complete Order Journey with connected return tracking.
               </p>
             </div>
             <OrdersPnlTable

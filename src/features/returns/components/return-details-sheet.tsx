@@ -65,7 +65,9 @@ function FieldItem({
         {isStatus && !isBlank ? (
           <StatusBadge status={displayStr} />
         ) : (
-          <span className={`${isCopyable && !isBlank ? "font-mono select-all" : ""} ${isBlank ? "text-muted-foreground/60 font-normal italic" : ""}`}>
+          <span
+            className={`${isCopyable && !isBlank ? "font-mono select-all" : ""} ${isBlank ? "text-muted-foreground/60 font-normal italic" : ""}`}
+          >
             {displayStr}
           </span>
         )}
@@ -82,14 +84,18 @@ function FieldItem({
   );
 }
 
-export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsSheetProps) {
+export function ReturnDetailsSheet({
+  isOpen,
+  onClose,
+  record,
+}: ReturnDetailsSheetProps) {
   if (!record) return null;
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="w-full sm:min-w-3xl lg:min-w-4xl xl:min-w-5xl overflow-y-auto p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl"
+        className="w-full sm:min-w-3xl lg:min-w-4xl xl:min-w-5xl max-w-5xl overflow-y-auto p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl"
       >
         {/* Header */}
         <SheetHeader className="p-6 border-b border-border bg-card/60 sticky top-0 z-10 backdrop-blur-md">
@@ -160,12 +166,26 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
                 <span>Return Core Details</span>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <FieldItem label="Return ID" value={record.returnId} isCopyable />
-                <FieldItem label="Return Status" value={record.returnStatus} isStatus />
+                <FieldItem
+                  label="Return ID"
+                  value={record.returnId}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Return Status"
+                  value={record.returnStatus}
+                  isStatus
+                />
                 <FieldItem label="Return Type" value={record.returnType} />
-                <FieldItem label="Completion Status" value={record.completionStatus} />
+                <FieldItem
+                  label="Completion Status"
+                  value={record.completionStatus}
+                />
                 <FieldItem label="Return Reason" value={record.returnReason} />
-                <FieldItem label="Return Sub-Reason" value={record.returnSubReason} />
+                <FieldItem
+                  label="Return Sub-Reason"
+                  value={record.returnSubReason}
+                />
               </dl>
             </div>
 
@@ -179,7 +199,11 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
                 <FieldItem label="SKU" value={record.sku} isCopyable />
                 <FieldItem label="FSN" value={record.fsn} isCopyable />
                 <FieldItem label="Quantity" value={record.quantity} />
-                <FieldItem label="Total Price" value={record.totalPrice} isPrice />
+                <FieldItem
+                  label="Total Price"
+                  value={record.totalPrice}
+                  isPrice
+                />
                 <div className="sm:col-span-2 lg:col-span-2">
                   <FieldItem label="Product Title" value={record.product} />
                 </div>
@@ -193,11 +217,26 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
                 <span>Shipment & Logistics</span>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <FieldItem label="Tracking ID" value={record.trackingId} isCopyable />
-                <FieldItem label="Shipment ID" value={record.shipmentId} isCopyable />
-                <FieldItem label="Bag Tracking ID" value={record.bagTrackingId} isCopyable />
+                <FieldItem
+                  label="Tracking ID"
+                  value={record.trackingId}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Shipment ID"
+                  value={record.shipmentId}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Bag Tracking ID"
+                  value={record.bagTrackingId}
+                  isCopyable
+                />
                 <FieldItem label="Shipment Type" value={record.shipmentType} />
-                <FieldItem label="Fulfillment Type (FF)" value={record.ffType} />
+                <FieldItem
+                  label="Fulfillment Type (FF)"
+                  value={record.ffType}
+                />
                 <FieldItem label="Vendor Name" value={record.vendorName} />
               </dl>
             </div>
@@ -209,12 +248,36 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
                 <span>Timeline & Critical Dates</span>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <FieldItem label="Return Requested Date" value={record.returnRequestedDate} isDate />
-                <FieldItem label="Return Approval Date" value={record.returnApprovalDate} isDate />
-                <FieldItem label="Picked Up Date" value={record.pickedUpDate} isDate />
-                <FieldItem label="Out For Delivery Date" value={record.outForDeliveryDate} isDate />
-                <FieldItem label="Delivery Promise Date" value={record.returnDeliveryPromiseDate} isDate />
-                <FieldItem label="Completed Date" value={record.completedDate} isDate />
+                <FieldItem
+                  label="Return Requested Date"
+                  value={record.returnRequestedDate}
+                  isDate
+                />
+                <FieldItem
+                  label="Return Approval Date"
+                  value={record.returnApprovalDate}
+                  isDate
+                />
+                <FieldItem
+                  label="Picked Up Date"
+                  value={record.pickedUpDate}
+                  isDate
+                />
+                <FieldItem
+                  label="Out For Delivery Date"
+                  value={record.outForDeliveryDate}
+                  isDate
+                />
+                <FieldItem
+                  label="Delivery Promise Date"
+                  value={record.returnDeliveryPromiseDate}
+                  isDate
+                />
+                <FieldItem
+                  label="Completed Date"
+                  value={record.completedDate}
+                  isDate
+                />
               </dl>
             </div>
 
@@ -226,14 +289,41 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <FieldItem label="Order ID" value={record.orderId} isCopyable />
-                <FieldItem label="Order Item ID" value={record.orderItemId} isCopyable />
-                <FieldItem label="Replacement Order Item ID" value={record.replacementOrderItemId} isCopyable />
+                <FieldItem
+                  label="Order Item ID"
+                  value={record.orderItemId}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Replacement Order Item ID"
+                  value={record.replacementOrderItemId}
+                  isCopyable
+                />
                 <FieldItem label="Order Type" value={record.orderType} />
-                <FieldItem label="Customer GSTIN" value={record.customerGstin} isCopyable />
-                <FieldItem label="Customer Company Name" value={record.customerCompanyName} />
-                <FieldItem label="Invoice Number" value={record.invoiceNumber} isCopyable />
-                <FieldItem label="Invoice Date" value={record.invoiceDate} isDate />
-                <FieldItem label="IRN Number" value={record.irnNumber} isCopyable />
+                <FieldItem
+                  label="Customer GSTIN"
+                  value={record.customerGstin}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Customer Company Name"
+                  value={record.customerCompanyName}
+                />
+                <FieldItem
+                  label="Invoice Number"
+                  value={record.invoiceNumber}
+                  isCopyable
+                />
+                <FieldItem
+                  label="Invoice Date"
+                  value={record.invoiceDate}
+                  isDate
+                />
+                <FieldItem
+                  label="IRN Number"
+                  value={record.irnNumber}
+                  isCopyable
+                />
               </dl>
             </div>
 
@@ -244,13 +334,26 @@ export function ReturnDetailsSheet({ isOpen, onClose, record }: ReturnDetailsShe
                 <span>Location & Operational Verification</span>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <FieldItem label="Location ID" value={record.locationId} isCopyable />
+                <FieldItem
+                  label="Location ID"
+                  value={record.locationId}
+                  isCopyable
+                />
                 <FieldItem label="Location Name" value={record.locationName} />
                 <FieldItem label="Flyer Status" value={record.flyerStatus} />
-                <FieldItem label="Flyer Captured" value={record.flyerCaptured} />
+                <FieldItem
+                  label="Flyer Captured"
+                  value={record.flyerCaptured}
+                />
                 <FieldItem label="Flyer Actual" value={record.flyerActual} />
-                <FieldItem label="Delivery Proof Time" value={record.deliveryProofTime} />
-                <FieldItem label="Delivery Proof OTC" value={record.deliveryProofOtc} />
+                <FieldItem
+                  label="Delivery Proof Time"
+                  value={record.deliveryProofTime}
+                />
+                <FieldItem
+                  label="Delivery Proof OTC"
+                  value={record.deliveryProofOtc}
+                />
                 <FieldItem label="OBD Eligible" value={record.obdEligible} />
                 <FieldItem label="OBD Status" value={record.obdStatus} />
                 <FieldItem label="OBD Remarks" value={record.obdRemarks} />

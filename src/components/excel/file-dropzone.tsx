@@ -103,7 +103,15 @@ export function FileDropzone() {
           onClose={() => setIsTypeDialogOpen(false)}
           fileName={pendingFile.name}
           detection={detectionResult}
-          onConfirm={(selectedType) => processSelectedReport(pendingFile, selectedType)}
+          onConfirm={(selectedType, customReportName, selectedMonth, selectedYear) =>
+            processSelectedReport(
+              pendingFile,
+              selectedType,
+              customReportName,
+              selectedMonth,
+              selectedYear
+            )
+          }
         />
       )}
 

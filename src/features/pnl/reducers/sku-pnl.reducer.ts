@@ -16,10 +16,34 @@ export function calculateSkuPnlAnalytics(
 
     const relatedOrders = ordersBySkuMap[r.sku.toLowerCase().trim()] || [];
 
+    let rtoUnits = r.rtoUnits || 0;
+    let rvpUnits = r.rvpUnits || 0;
+    let cancelledUnits = r.cancelledUnits || 0;
+
+    // If SKU record has 0 sub-breakdown but has returnedCancelledUnits, derive split from matched order records
+    if (rtoUnits === 0 && rvpUnits === 0 && cancelledUnits === 0 && relatedOrders.length > 0) {
+      for (const order of relatedOrders) {
+        const s = (order.orderStatus || "").toLowerCase();
+        const diff = order.returnedCancelledUnits || (order.grossUnits - order.netUnits) || 0;
+        if (diff > 0) {
+          if (s.includes("rto") || s.includes("courier")) {
+            rtoUnits += diff;
+          } else if (s.includes("cancel")) {
+            cancelledUnits += diff;
+          } else {
+            rvpUnits += diff;
+          }
+        }
+      }
+    }
+
     return {
       sku: r.sku,
       grossUnits: r.grossUnits,
       returnedCancelledUnits: r.returnedCancelledUnits,
+      rtoUnits,
+      rvpUnits,
+      cancelledUnits,
       netUnits: r.netUnits,
       returnRate,
       sales: r.estimatedNetSales,

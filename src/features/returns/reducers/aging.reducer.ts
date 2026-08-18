@@ -1,5 +1,6 @@
 import { ReturnRecord } from "../types/return.types";
 import { AgingAnalytics, AgingBucket } from "../types/analytics.types";
+import { toValidDate } from "../utils/date";
 
 /**
  * Calculates Return Aging & Turnaround analytics
@@ -35,10 +36,12 @@ export function calculateAgingAnalytics(returns: ReturnRecord[], referenceDate =
   };
 
   returns.forEach((r) => {
-    const isOpen = r.completionStatus.toLowerCase().trim() === "open";
+    const isOpen = (r.completionStatus || "").toLowerCase().trim() === "open";
+    const reqDate = toValidDate(r.returnRequestedDate);
+    const promiseDate = toValidDate(r.returnDeliveryPromiseDate);
 
-    if (r.returnRequestedDate) {
-      const ageMs = referenceDate.getTime() - r.returnRequestedDate.getTime();
+    if (reqDate) {
+      const ageMs = referenceDate.getTime() - reqDate.getTime();
       const ageDays = Math.max(0, Math.floor(ageMs / (1000 * 60 * 60 * 24)));
 
       if (isOpen) {
@@ -53,8 +56,8 @@ export function calculateAgingAnalytics(returns: ReturnRecord[], referenceDate =
     }
 
     // Overdue check: Open AND referenceDate > Return Delivery Promise Date
-    if (isOpen && r.returnDeliveryPromiseDate) {
-      if (referenceDate.getTime() > r.returnDeliveryPromiseDate.getTime()) {
+    if (isOpen && promiseDate) {
+      if (referenceDate.getTime() > promiseDate.getTime()) {
         overdueCount++;
       }
     }

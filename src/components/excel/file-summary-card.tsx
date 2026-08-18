@@ -59,7 +59,10 @@ export function FileSummaryCard() {
         <div className="space-y-6">
           <DashboardOverview analytics={analytics} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TopReasonsCard reasonAnalytics={analytics.reason} totalReturns={analytics.overview.totalReturns} />
+            <TopReasonsCard
+              reasonAnalytics={analytics.reason}
+              totalReturns={analytics.overview.totalReturns}
+            />
             <TopProductsCard productAnalytics={analytics.product} />
           </div>
         </div>
@@ -67,6 +70,31 @@ export function FileSummaryCard() {
 
       {/* 3. Action CTAs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Actual Profit Intelligence Card */}
+        <div className="flex flex-col justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-3 shadow-xs">
+          <div>
+            <div className="flex items-center gap-2 font-bold text-foreground text-sm">
+              <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Actual Profit Intelligence
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Calculate exact business earnings by factoring in product,
+              logistics, packaging & custom unit costs.
+            </p>
+          </div>
+          <Button
+            asChild
+            variant="default"
+            size="sm"
+            className="w-full gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Link href="/analytics/actual-profit">
+              View Actual Profit
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
         {/* Dedicated Multi-Route Analytics Link */}
         <div className="flex flex-col justify-between rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3 shadow-xs">
           <div>
@@ -75,12 +103,18 @@ export function FileSummaryCard() {
               Multi-Route Analytics
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Explore 9 dedicated analytics sections: SKU, Products, Orders, Returns, Financials, Fees, Settlements & Correlations.
+              Explore SKU, Products, Orders, Returns, Financials, Fees,
+              Settlements & Correlations.
             </p>
           </div>
-          <Button asChild variant="default" size="sm" className="w-full gap-2 cursor-pointer">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 cursor-pointer bg-background"
+          >
             <Link href="/analytics/overview">
-              Open Analytics Suite
+              Analytics Suite
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
@@ -94,10 +128,16 @@ export function FileSummaryCard() {
                 P&L Data Tables
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Explore individual SKU financial metrics, order economics, settlement status, and connected SKU-to-order journeys.
+                Explore individual SKU financial metrics, order economics,
+                settlement status, and connected SKU-to-order journeys.
               </p>
             </div>
-            <Button asChild variant="outline" size="sm" className="w-full gap-2 cursor-pointer bg-background">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 cursor-pointer bg-background"
+            >
               <Link href="/pnl">
                 Open P&L Tables
                 <ArrowRight className="h-4 w-4" />
@@ -114,10 +154,16 @@ export function FileSummaryCard() {
                 Returns Data Table (43 Fields)
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Explore all {records.length.toLocaleString()} return records with search, filtering, comments, and column visibility.
+                Explore all {records.length.toLocaleString()} return records
+                with search, filtering, comments, and column visibility.
               </p>
             </div>
-            <Button asChild variant="outline" size="sm" className="w-full gap-2 cursor-pointer bg-background">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 cursor-pointer bg-background"
+            >
               <Link href="/table">
                 Explore Returns Table
                 <ArrowRight className="h-4 w-4" />
@@ -133,7 +179,9 @@ export function FileSummaryCard() {
               Developer Reducer Console Log
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Inspect calculated domain analytics objects and normalized datasets in developer console (<kbd className="rounded bg-muted px-1 text-[10px]">F12</kbd>).
+              Inspect calculated domain analytics objects and normalized
+              datasets in developer console (
+              <kbd className="rounded bg-muted px-1 text-[10px]">F12</kbd>).
             </p>
           </div>
           <Button

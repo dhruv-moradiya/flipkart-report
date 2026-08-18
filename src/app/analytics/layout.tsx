@@ -10,7 +10,7 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
     <div className="min-h-svh bg-background text-foreground flex flex-col">
       <AnalyticsHeader />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col lg:flex-row gap-6">
           <AnalyticsSidebar />
           <div className="flex-1 min-w-0">{children}</div>

@@ -538,18 +538,25 @@ export function DataTable({
               <TableBody>
                 {table.getRowModel().rows.map((row, index) => {
                   const isEven = index % 2 === 0;
+                  const isExpanded = row.getIsExpanded();
+                  const stickyBg = isExpanded
+                    ? "bg-muted group-hover:bg-muted"
+                    : isEven
+                      ? "bg-card group-hover:bg-muted/80 dark:group-hover:bg-muted/70"
+                      : "bg-secondary group-hover:bg-muted/80 dark:group-hover:bg-muted/70";
 
                   return (
                     <React.Fragment key={row.id}>
-                      {/* Main Table Row */}
                       <TableRow
                         data-state={row.getIsSelected() && "selected"}
                         onClick={() => row.toggleExpanded()}
                         className={`group transition-colors border-b border-border/70 cursor-pointer ${
-                          isEven
-                            ? "bg-card hover:bg-muted/70 dark:hover:bg-muted/60"
-                            : "bg-muted/25 hover:bg-muted/70 dark:hover:bg-muted/60"
-                        } ${row.getIsExpanded() ? "!bg-muted/40" : ""}`}
+                          isExpanded
+                            ? "bg-muted/50 dark:bg-muted/40"
+                            : isEven
+                              ? "bg-card hover:bg-muted/60 dark:hover:bg-muted/50"
+                              : "bg-secondary/40 hover:bg-muted/60 dark:hover:bg-muted/50"
+                        }`}
                       >
                         {row.getVisibleCells().map((cell) => {
                           const isExpander = cell.column.id === "expander";
@@ -561,27 +568,11 @@ export function DataTable({
                               key={cell.id}
                               className={`py-2.5 px-3 align-middle transition-colors ${
                                 isExpander
-                                  ? `sticky left-0 z-20 w-10 min-w-10 text-center p-0 ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } ${row.getIsExpanded() ? "!bg-muted/40" : ""}`
+                                  ? `sticky left-0 z-20 w-10 min-w-10 text-center p-0 ${stickyBg}`
                                   : isReturnId
-                                  ? `sticky left-10 z-20 min-w-[160px] ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } shadow-[1px_0_0_0_var(--border)] border-r border-border/60 ${
-                                      row.getIsExpanded() ? "!bg-muted/40" : ""
-                                    }`
+                                  ? `sticky left-10 z-20 min-w-[160px] ${stickyBg} shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
                                   : isActions
-                                  ? `sticky right-0 z-20 min-w-[70px] text-right ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } shadow-[-1px_0_0_0_var(--border)] border-l border-border/60 ${
-                                      row.getIsExpanded() ? "!bg-muted/40" : ""
-                                    }`
+                                  ? `sticky right-0 z-20 min-w-[70px] text-right ${stickyBg} shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
                                   : ""
                               }`}
                             >

@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { Suspense, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Upload,
@@ -10,6 +11,7 @@ import {
   RefreshCw,
   ShoppingBag,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,16 +24,54 @@ import { TopProductsCard } from "@/features/returns/components/top-products-card
 import { ReturnsDataTable } from "@/features/returns/components/returns-data-table";
 import { OrderJourneySheet } from "@/features/reports/components/order-journey-sheet";
 
-export default function TablePage() {
+function TableContent() {
+  const searchParams = useSearchParams();
+  const reportIdParam = searchParams.get("reportId");
+  const periodParam = searchParams.get("period");
+
   const {
     records,
     analytics,
     fileName,
     sheetNames,
     pnlReport,
+    isDbLoading,
+    activeReturnsReportId,
+    loadReturnsFromBackend,
     clearData,
     logToConsole,
   } = useExcelData();
+
+  // Load from DB when reportId or period is present in query parameters
+  useEffect(() => {
+    if (reportIdParam || periodParam) {
+      loadReturnsFromBackend(reportIdParam || periodParam || undefined);
+    }
+  }, [reportIdParam, periodParam, loadReturnsFromBackend]);
+
+  // Keep reportId in URL params so upon refreshing, the active report stays visible
+  useEffect(() => {
+    if (typeof window !== "undefined" && activeReturnsReportId) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("reportId") !== activeReturnsReportId) {
+        url.searchParams.set("reportId", activeReturnsReportId);
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    }
+  }, [activeReturnsReportId]);
+
+  if (isDbLoading && records.length === 0) {
+    return (
+      <main className="flex min-h-svh w-full items-center justify-center bg-background p-4 text-foreground">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Loading Flipkart Returns Report from database...
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (records.length === 0 || !analytics) {
     return (
@@ -42,12 +82,18 @@ export default function TablePage() {
               <FileQuestion className="h-6 w-6" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-lg font-bold tracking-tight">No Flipkart Returns Report Loaded</h2>
+              <h2 className="text-lg font-bold tracking-tight">
+                No Flipkart Returns Report Loaded
+              </h2>
               <p className="text-xs text-muted-foreground">
-                Upload your official 43-column Flipkart Returns report to view reverse logistics analytics and the interactive table.
+                Upload your official 43-column Flipkart Returns report to view
+                reverse logistics analytics and the interactive table.
               </p>
             </div>
-            <Button asChild className="w-full gap-2 mt-4 text-xs cursor-pointer">
+            <Button
+              asChild
+              className="w-full gap-2 mt-4 text-xs cursor-pointer"
+            >
               <Link href="/">
                 <Upload className="h-4 w-4" />
                 Upload Flipkart Report
@@ -60,11 +106,16 @@ export default function TablePage() {
   }
 
   return (
-    <main className="min-h-svh w-full bg-background p-4 md:p-6 text-foreground space-y-5">
+    <main className="min-h-svh max-w-7xl mx-auto bg-background p-4 md:p-6 text-foreground space-y-5">
       {/* Top Flipkart Platform Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline" size="icon" className="h-8 w-8 shrink-0 bg-background cursor-pointer">
+          <Button
+            asChild
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0 bg-background cursor-pointer"
+          >
             <Link href="/" title="Back to Upload">
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -79,7 +130,10 @@ export default function TablePage() {
                 <h1 className="text-base font-bold tracking-tight text-foreground">
                   Flipkart Returns Analytics
                 </h1>
-                <Badge variant="secondary" className="text-[11px] font-mono font-medium">
+                <Badge
+                  variant="secondary"
+                  className="text-[11px] font-mono font-medium"
+                >
                   {fileName || "Report"}
                 </Badge>
               </div>
@@ -93,7 +147,12 @@ export default function TablePage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {pnlReport && (
-            <Button asChild variant="default" size="sm" className="gap-1.5 text-xs h-8 cursor-pointer">
+            <Button
+              asChild
+              variant="default"
+              size="sm"
+              className="gap-1.5 text-xs h-8 cursor-pointer"
+            >
               <Link href="/pnl">
                 <TrendingUp className="h-3.5 w-3.5" />
                 View P&L Dashboard
@@ -111,7 +170,12 @@ export default function TablePage() {
             Log Analytics
           </Button>
 
-          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs h-8 bg-background cursor-pointer">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-8 bg-background cursor-pointer"
+          >
             <Link href="/" onClick={clearData}>
               <RefreshCw className="h-3.5 w-3.5" />
               Upload New Report
@@ -128,15 +192,40 @@ export default function TablePage() {
 
       {/* Top Reasons & Products Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TopReasonsCard reasonAnalytics={analytics.reason} totalReturns={analytics.overview.totalReturns} />
+        <TopReasonsCard
+          reasonAnalytics={analytics.reason}
+          totalReturns={analytics.overview.totalReturns}
+        />
         <TopProductsCard productAnalytics={analytics.product} />
       </div>
 
       {/* 43-Column Production Returns Data Table */}
-      <ReturnsDataTable records={records} fileName={fileName || "Flipkart_Returns"} />
+      <ReturnsDataTable
+        records={records}
+        fileName={fileName || "Flipkart_Returns"}
+      />
 
       {/* Global Order Journey Drawer */}
       <OrderJourneySheet />
     </main>
+  );
+}
+
+export default function TablePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-svh w-full items-center justify-center bg-background p-4 text-foreground">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
+            <p className="text-sm font-medium text-muted-foreground">
+              Loading Flipkart Returns Report...
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <TableContent />
+    </Suspense>
   );
 }

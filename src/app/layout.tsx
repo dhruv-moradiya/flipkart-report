@@ -1,5 +1,6 @@
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ExcelProvider } from "@/context/excel-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,13 +25,15 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
     >
       <body>
-        <ThemeProvider>
-          <ExcelProvider>
-            <TooltipProvider delayDuration={150}>
-              {children}
-            </TooltipProvider>
-          </ExcelProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <ExcelProvider>
+              <TooltipProvider delayDuration={150}>
+                {children}
+              </TooltipProvider>
+            </ExcelProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

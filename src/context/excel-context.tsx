@@ -24,6 +24,8 @@ import {
 import { OrderJourney } from "../features/reports/types/journey.types";
 import { buildOrderJourney } from "../features/reports/relations/order-journey.builder";
 
+import { apiClient } from "@/lib/api-client";
+
 export interface ExcelContextState {
   // Active Report View Mode
   activeReportType: ReportType | "journey" | null;
@@ -35,12 +37,18 @@ export interface ExcelContextState {
   analytics: ReturnAnalytics | null; // Backwards compatible alias
   setParseResult: (result: ParseResult | null) => void;
   clearReturnsData: () => void;
+  loadReturnsFromBackend: (reportIdOrPeriod?: string) => Promise<boolean>;
+  activeReturnsReportId: string | null;
 
-  // 2. Profit & Loss Report Data
+  // 2. Profit & Loss Report Data (Persisted in DB)
   pnlReport: PnlReport | null;
   pnlAnalytics: PnlAnalytics | null;
   setPnlReport: (report: PnlReport | null) => void;
   clearPnlData: () => void;
+  loadReportFromBackend: (reportIdOrPeriod?: string) => Promise<boolean>;
+  isDbLoading: boolean;
+  activeReportingPeriod: string | null;
+  activeReportId: string | null;
 
   // 3. Order Journey State & Action
   selectedJourneyOrderId: string | null;
@@ -62,10 +70,6 @@ export interface ExcelContextState {
 
 const ExcelContext = createContext<ExcelContextState | undefined>(undefined);
 
-const STORAGE_KEY_RETURNS = "flipkart_reports_normalized_records";
-const STORAGE_KEY_PNL = "flipkart_reports_pnl_data";
-const META_KEY = "flipkart_reports_meta";
-
 export function ExcelProvider({ children }: { children: React.ReactNode }) {
   const [activeReportType, setActiveReportType] = useState<
     ReportType | "journey" | null
@@ -74,6 +78,10 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
   // Independent Datasets
   const [records, setRecords] = useState<ReturnRecord[]>([]);
   const [pnlReport, setPnlReportState] = useState<PnlReport | null>(null);
+  const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
+  const [activeReportingPeriod, setActiveReportingPeriod] = useState<string | null>(null);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [activeReturnsReportId, setActiveReturnsReportId] = useState<string | null>(null);
 
   // File Names
   const [returnsFileName, setReturnsFileName] = useState<string | null>(null);
@@ -87,62 +95,77 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
     string | null
   >(null);
 
-  // Hydrate from SessionStorage and URL query params
-  useEffect(() => {
+  const loadReportFromBackend = useCallback(async (reportIdOrPeriod?: string): Promise<boolean> => {
+    setIsDbLoading(true);
     try {
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        const orderIdParam = url.searchParams.get("orderId");
-        if (orderIdParam) {
-          setSelectedJourneyOrderId(orderIdParam);
-        }
+      const endpoint = reportIdOrPeriod && reportIdOrPeriod !== "latest"
+        ? `/api/reports/${reportIdOrPeriod}/data`
+        : `/api/reports/data`;
+      const res = await apiClient.get(endpoint);
+      if (res.data?.success && res.data?.data?.pnlReport) {
+        const payload = res.data.data;
+        setPnlReportState(payload.pnlReport);
+        setPnlFileName(payload.pnlReport.fileName);
+        setActiveReportType("profit_loss");
+        setActiveReportingPeriod(payload.report?.reportingPeriod || null);
+        setActiveReportId(payload.report?._id || null);
+        setSheetNames(payload.pnlReport.sheetNames || []);
+        setActiveSheetName(payload.pnlReport.skuSheetName || "SKU Level P&L");
+        return true;
       }
-
-      const savedMeta = sessionStorage.getItem(META_KEY);
-      if (savedMeta) {
-        const meta = JSON.parse(savedMeta);
-        setActiveReportType(
-          meta.activeReportType || (meta.hasPnl ? "profit_loss" : "returns"),
-        );
-        setReturnsFileName(meta.returnsFileName || null);
-        setPnlFileName(meta.pnlFileName || null);
-        setFileSize(meta.fileSize || 0);
-        setSheetNames(meta.sheetNames || []);
-        setActiveSheetName(meta.activeSheetName || null);
-      }
-
-      const savedPnl = sessionStorage.getItem(STORAGE_KEY_PNL);
-      if (savedPnl) {
-        setPnlReportState(JSON.parse(savedPnl));
-      }
-
-      const savedRecords = sessionStorage.getItem(STORAGE_KEY_RETURNS);
-      if (savedRecords) {
-        const parsedRecords: ReturnRecord[] = JSON.parse(savedRecords);
-        const hydrated = parsedRecords.map((r) => ({
-          ...r,
-          returnRequestedDate: r.returnRequestedDate
-            ? new Date(r.returnRequestedDate)
-            : null,
-          returnApprovalDate: r.returnApprovalDate
-            ? new Date(r.returnApprovalDate)
-            : null,
-          completedDate: r.completedDate ? new Date(r.completedDate) : null,
-          outForDeliveryDate: r.outForDeliveryDate
-            ? new Date(r.outForDeliveryDate)
-            : null,
-          returnDeliveryPromiseDate: r.returnDeliveryPromiseDate
-            ? new Date(r.returnDeliveryPromiseDate)
-            : null,
-          pickedUpDate: r.pickedUpDate ? new Date(r.pickedUpDate) : null,
-          invoiceDate: r.invoiceDate ? new Date(r.invoiceDate) : null,
-        }));
-        setRecords(hydrated);
-      }
-    } catch {
-      // Ignore
+      return false;
+    } catch (err) {
+      console.warn("Backend report loading notice:", err);
+      return false;
+    } finally {
+      setIsDbLoading(false);
     }
   }, []);
+
+  const loadReturnsFromBackend = useCallback(async (reportIdOrPeriod?: string): Promise<boolean> => {
+    setIsDbLoading(true);
+    try {
+      const endpoint = reportIdOrPeriod && reportIdOrPeriod !== "latest"
+        ? `/api/reports/returns/${reportIdOrPeriod}/data`
+        : `/api/reports/returns/data`;
+      const res = await apiClient.get(endpoint);
+      if (res.data?.success && res.data?.data?.returnsReport) {
+        const payload = res.data.data;
+        setRecords(payload.returnsReport.records || []);
+        setReturnsFileName(payload.returnsReport.fileName || null);
+        setActiveReturnsReportId(payload.report?._id || null);
+        setActiveReportType("returns");
+        if (payload.returnsReport.sheetNames) {
+          setSheetNames(payload.returnsReport.sheetNames);
+        }
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn("Backend returns report loading notice:", err);
+      return false;
+    } finally {
+      setIsDbLoading(false);
+    }
+  }, []);
+
+  // Hydrate from DB & URL query params on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const orderIdParam = url.searchParams.get("orderId");
+      if (orderIdParam) {
+        setSelectedJourneyOrderId(orderIdParam);
+      }
+      const periodParam = url.searchParams.get("period");
+      const reportIdParam = url.searchParams.get("reportId");
+      loadReportFromBackend(reportIdParam || periodParam || undefined);
+      loadReturnsFromBackend(reportIdParam || periodParam || undefined);
+    } else {
+      loadReportFromBackend();
+      loadReturnsFromBackend();
+    }
+  }, [loadReportFromBackend, loadReturnsFromBackend]);
 
   // Listen to browser Back/Forward (popstate) for Order Journey query param
   useEffect(() => {
@@ -229,28 +252,6 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
       setSheetNames(result.sheetNames);
       setActiveSheetName(result.activeSheetName);
       setActiveReportType("returns");
-
-      try {
-        sessionStorage.setItem(
-          META_KEY,
-          JSON.stringify({
-            activeReportType: "returns",
-            returnsFileName: result.fileName,
-            pnlFileName,
-            hasPnl: Boolean(pnlReport),
-            hasReturns: true,
-            fileSize: result.fileSize,
-            sheetNames: result.sheetNames,
-            activeSheetName: result.activeSheetName,
-          }),
-        );
-        sessionStorage.setItem(
-          STORAGE_KEY_RETURNS,
-          JSON.stringify(result.records),
-        );
-      } catch {
-        // Safe storage quota fallback
-      }
     } else {
       clearReturnsData();
     }
@@ -264,25 +265,6 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
       setSheetNames(report.sheetNames);
       setActiveSheetName(report.skuSheetName);
       setActiveReportType("profit_loss");
-
-      try {
-        sessionStorage.setItem(
-          META_KEY,
-          JSON.stringify({
-            activeReportType: "profit_loss",
-            pnlFileName: report.fileName,
-            returnsFileName,
-            hasPnl: true,
-            hasReturns: records.length > 0,
-            fileSize: report.fileSize,
-            sheetNames: report.sheetNames,
-            activeSheetName: report.skuSheetName,
-          }),
-        );
-        sessionStorage.setItem(STORAGE_KEY_PNL, JSON.stringify(report));
-      } catch {
-        // Safe storage quota fallback
-      }
     } else {
       clearPnlData();
     }
@@ -296,11 +278,6 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
     } else {
       setActiveReportType(null);
     }
-    try {
-      sessionStorage.removeItem(STORAGE_KEY_RETURNS);
-    } catch {
-      // Ignore
-    }
   };
 
   const clearPnlData = () => {
@@ -310,11 +287,6 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
       setActiveReportType("returns");
     } else {
       setActiveReportType(null);
-    }
-    try {
-      sessionStorage.removeItem(STORAGE_KEY_PNL);
-    } catch {
-      // Ignore
     }
   };
 
@@ -326,13 +298,6 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
     setActiveSheetName(null);
     setActiveReportType(null);
     setSelectedJourneyOrderId(null);
-    try {
-      sessionStorage.removeItem(META_KEY);
-      sessionStorage.removeItem(STORAGE_KEY_RETURNS);
-      sessionStorage.removeItem(STORAGE_KEY_PNL);
-    } catch {
-      // Ignore
-    }
   };
 
   const logToConsole = () => {
@@ -359,10 +324,16 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
         analytics: returnsAnalytics,
         setParseResult,
         clearReturnsData,
+        loadReturnsFromBackend,
+        activeReturnsReportId,
         pnlReport,
         pnlAnalytics,
         setPnlReport,
         clearPnlData,
+        loadReportFromBackend,
+        isDbLoading,
+        activeReportingPeriod,
+        activeReportId,
         selectedJourneyOrderId,
         activeJourney,
         openOrderJourney,

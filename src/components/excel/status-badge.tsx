@@ -53,9 +53,15 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     variant = "destructive";
   }
 
+  const displayLabel = status.replace(/_/g, " ");
+
   return (
-    <Badge variant={variant} className={className}>
-      {status}
+    <Badge
+      variant={variant}
+      className={`truncate max-w-full inline-block text-[10px] font-medium leading-tight py-0.5 px-2 tracking-tight ${className || ""}`}
+      title={status}
+    >
+      {displayLabel}
     </Badge>
   );
 }

@@ -39,31 +39,7 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
     <div className="space-y-4">
       {/* Primary KPI Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* 1. Net Earnings */}
-        <Card className="border-border bg-card shadow-xs">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Total Net Earnings
-              </p>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
-                  {formatINR(overview.totalNetEarnings)}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <span>Avg. ₹{overview.averageEarningsPerUnit} / net unit</span>
-                <span>•</span>
-                <span className="font-medium text-foreground">{earnings.profitableSkusCount} profitable SKUs</span>
-              </p>
-            </div>
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg border border-border shrink-0 ${isProfitable ? "bg-muted text-foreground" : "bg-destructive/10 text-destructive"}`}>
-              {isProfitable ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. Estimated Net Sales */}
+        {/* 1. Estimated Net Sales */}
         <Card className="border-border bg-card shadow-xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -85,7 +61,7 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
           </CardContent>
         </Card>
 
-        {/* 3. Total Expenses & Rewards */}
+        {/* 2. Total Expenses & Rewards */}
         <Card className="border-border bg-card shadow-xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -98,11 +74,44 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Rewards: {formatINR(overview.totalRewards)} • ITC: {formatINR(overview.totalInputTaxCredits)}
+                Rewards: {formatINR(overview.totalRewards)} • ITC:{" "}
+                {formatINR(overview.totalInputTaxCredits)}
               </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground border border-border shrink-0">
               <Receipt className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 3. Net Earnings */}
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Total Net Earnings
+              </p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                  {formatINR(overview.totalNetEarnings)}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <span>Avg. ₹{overview.averageEarningsPerUnit} / net unit</span>
+                <span>•</span>
+                <span className="font-medium text-foreground">
+                  {earnings.profitableSkusCount} profitable SKUs
+                </span>
+              </p>
+            </div>
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-lg border border-border shrink-0 ${isProfitable ? "bg-muted text-foreground" : "bg-destructive/10 text-destructive"}`}
+            >
+              {isProfitable ? (
+                <TrendingUp className="h-5 w-5" />
+              ) : (
+                <TrendingDown className="h-5 w-5" />
+              )}
             </div>
           </CardContent>
         </Card>
@@ -117,7 +126,9 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold text-foreground">
                   {overview.totalNetUnits.toLocaleString()}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">Net</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Net
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground">/</span>
                 <span className="text-sm font-medium text-muted-foreground">
@@ -125,8 +136,12 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono">
-                  {overview.totalReturnedCancelledUnits} Ret + Canc ({overview.overallReturnRate}%)
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1 py-0 h-4 font-mono"
+                >
+                  {overview.totalReturnedCancelledUnits} Ret + Canc (
+                  {overview.overallReturnRate}%)
                 </Badge>
               </div>
             </div>
@@ -186,7 +201,9 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
                 {overview.totalSkus.toLocaleString()}
               </p>
               <span className="text-[10px] text-muted-foreground">
-                {earnings.lossMakingSkusCount > 0 ? `${earnings.lossMakingSkusCount} loss-making` : "100% profitable"}
+                {earnings.lossMakingSkusCount > 0
+                  ? `${earnings.lossMakingSkusCount} loss-making`
+                  : "100% profitable"}
               </span>
             </div>
             <Layers className="h-4 w-4 text-foreground/70" />
@@ -218,20 +235,31 @@ export function PnlDashboardOverview({ analytics }: PnlDashboardOverviewProps) {
           <div className="flex items-center gap-1.5">
             <FileSpreadsheet className="h-3.5 w-3.5 text-foreground" />
             <span>Data Source:</span>
-            <strong className="text-foreground">Flipkart — SKU-level P&L + Orders P&L</strong>
+            <strong className="text-foreground">
+              Flipkart — SKU-level P&L + Orders P&L
+            </strong>
           </div>
           <div className="flex items-center gap-1.5">
             <span>Uploaded File:</span>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 h-4 font-mono"
+            >
               {rawReport.fileName}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
+            <Badge
+              variant="secondary"
+              className="text-[10px] px-1.5 py-0 h-4 gap-1"
+            >
               <CheckCircle2 className="h-3 w-3" />
               {rawReport.skuSheetName} ({overview.totalSkus} SKUs)
             </Badge>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
+            <Badge
+              variant="secondary"
+              className="text-[10px] px-1.5 py-0 h-4 gap-1"
+            >
               <CheckCircle2 className="h-3 w-3" />
               {rawReport.ordersSheetName} ({orders.totalOrderItems} items)
             </Badge>

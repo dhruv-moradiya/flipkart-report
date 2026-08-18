@@ -48,27 +48,38 @@ export function parseFlipkartDate(val: unknown): Date | null {
   return null;
 }
 
-export function formatDate(date: Date | null, fallback = "-"): string {
-  if (!date || isNaN(date.getTime())) return fallback;
+export function toValidDate(val: unknown): Date | null {
+  if (val === null || val === undefined || val === "") return null;
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? null : val;
+  }
+  return parseFlipkartDate(val);
+}
+
+export function formatDate(date: unknown, fallback = "-"): string {
+  const d = toValidDate(date);
+  if (!d) return fallback;
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(date);
+  }).format(d);
 }
 
-export function formatDateTime(date: Date | null, fallback = "-"): string {
-  if (!date || isNaN(date.getTime())) return fallback;
+export function formatDateTime(date: unknown, fallback = "-"): string {
+  const d = toValidDate(date);
+  if (!d) return fallback;
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(d);
 }
 
-export function formatISODateOnly(date: Date | null): string {
-  if (!date || isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
+export function formatISODateOnly(date: unknown): string {
+  const d = toValidDate(date);
+  if (!d) return "";
+  return d.toISOString().slice(0, 10);
 }

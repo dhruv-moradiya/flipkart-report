@@ -1,7 +1,20 @@
 "use client";
 
-import React from "react";
-import { FileSpreadsheet, FileText } from "lucide-react";
+import React, { useState } from "react";
+import Link from "next/link";
+import {
+  FileSpreadsheet,
+  FileText,
+  Sparkles,
+  Calculator,
+  ArrowUpDown,
+  Layers,
+  ShoppingBag,
+  ArrowRight,
+  UploadCloud,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -10,45 +23,116 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { FileDropzone } from "@/components/excel/file-dropzone";
-import { FileSummaryCard } from "@/components/excel/file-summary-card";
+import { HomeUploadedReports } from "@/components/reports/home-uploaded-reports";
 import { useExcelData } from "@/context/excel-context";
 
 export default function Page() {
   const { records, pnlReport } = useExcelData();
-  const hasData = records.length > 0 || Boolean(pnlReport);
+  const [showUploader, setShowUploader] = useState<boolean>(true);
 
   return (
-    <main className="flex min-h-svh w-full items-center justify-center bg-background p-4 md:p-8 text-foreground">
-      <div className="w-full max-w-5xl space-y-6">
-        <Card className="border border-border bg-card shadow-lg">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <main className="min-h-svh bg-background text-foreground p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+      <div className="w-full max-w-6xl space-y-6">
+        {/* Top Header Card */}
+        <Card className="border border-border bg-card shadow-sm overflow-hidden">
+          <CardHeader className="text-center pb-4 pt-6">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-xs">
               <FileSpreadsheet className="h-6 w-6" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              Flipkart Seller Analytics Platform
+            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
+              Flipkart Seller Financial & Profit Intelligence
             </CardTitle>
-            <CardDescription className="text-muted-foreground max-w-2xl mx-auto">
-              Upload your official Flipkart reports (<code className="text-xs bg-muted px-1 py-0.5 rounded">.xlsx</code>,{" "}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">.xls</code>, or{" "}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">.csv</code>).
-              Supports <strong>SKU-level P&L + Orders P&L</strong> workbooks and <strong>Returns Reports</strong> with automated sheet detection and domain reducers.
+            <CardDescription className="text-muted-foreground max-w-2xl mx-auto text-xs sm:text-sm">
+              Upload your monthly Flipkart reports to store persistent financial data, configure SKU unit costs, and track actual net profit over time.
             </CardDescription>
+
+            {/* Quick Navigation Action Hub */}
+            <div className="flex items-center justify-center gap-2 pt-3 flex-wrap">
+              <Button asChild size="sm" className="h-8 text-xs gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Link href="/analytics/actual-profit">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Actual Profit Intelligence
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+                <Link href="/pnl">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  P&L Tables
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+                <Link href="/analytics/compare">
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  Month Compare
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+                <Link href="/sku-costs">
+                  <Layers className="h-3.5 w-3.5" />
+                  SKU Cost Master
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+                <Link href="/analytics/overview">
+                  Multi-Route Analytics
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            {!hasData ? <FileDropzone /> : <FileSummaryCard />}
+          {/* Upload Dropzone Section */}
+          <CardContent className="space-y-4 border-t border-border pt-4 bg-muted/10">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <UploadCloud className="h-4 w-4 text-primary" />
+                Upload New Monthly P&L or Returns Report
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={() => setShowUploader(!showUploader)}
+              >
+                {showUploader ? (
+                  <>
+                    Collapse <ChevronUp className="h-3.5 w-3.5 ml-1" />
+                  </>
+                ) : (
+                  <>
+                    Expand <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {showUploader && (
+              <div className="pt-1">
+                <FileDropzone />
+              </div>
+            )}
+          </CardContent>
+
+          {/* Uploaded Reports Directory Section */}
+          <CardContent className="border-t border-border pt-6 pb-6 space-y-4">
+            <HomeUploadedReports />
           </CardContent>
 
           <CardFooter className="flex justify-between border-t border-border bg-muted/20 px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" />
-              <span>Modular Domain Reducer Architecture</span>
+              <span>MongoDB Persistent Storage • Fastify Calculation Engine</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span>Ready for report upload</span>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Backend Connected</span>
             </div>
           </CardFooter>
         </Card>

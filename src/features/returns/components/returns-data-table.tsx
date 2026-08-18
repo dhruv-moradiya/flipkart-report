@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -74,7 +75,10 @@ import { StatusBadge } from "@/components/excel/status-badge";
 import { CompactIdCell } from "@/components/excel/compact-id-cell";
 import { ReturnRecord } from "../types/return.types";
 import { FLIPKART_FIELDS } from "../constants/flipkart-fields";
-import { formatReturnType, formatReturnStatus } from "../constants/return.constants";
+import {
+  formatReturnType,
+  formatReturnStatus,
+} from "../constants/return.constants";
 import { formatDate } from "../utils/date";
 import { ReturnDetailsSheet } from "./return-details-sheet";
 
@@ -83,8 +87,14 @@ interface ReturnsDataTableProps {
   fileName?: string;
 }
 
-export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: ReturnsDataTableProps) {
+export function ReturnsDataTable({
+  records,
+  fileName = "Flipkart_Returns",
+}: ReturnsDataTableProps) {
   const { openOrderJourney } = useExcelData();
+  const searchParams = useSearchParams();
+  const returnIdFromUrl = searchParams?.get("returnId") || null;
+
   // Table State
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>("");
@@ -92,7 +102,73 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [commentsFilter, setCommentsFilter] = useState<string>("");
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [selectedDrawerRecord, setSelectedDrawerRecord] = useState<ReturnRecord | null>(null);
+  const [selectedDrawerRecord, setSelectedDrawerRecord] =
+    useState<ReturnRecord | null>(null);
+
+  const handleOpenDetails = useCallback((rec: ReturnRecord) => {
+    setSelectedDrawerRecord(rec);
+    if (typeof window !== "undefined") {
+      const idToSet = rec.returnId || rec.orderItemId || rec.trackingId;
+      if (idToSet) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("returnId") !== idToSet) {
+          url.searchParams.set("returnId", idToSet);
+          window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+        }
+      }
+    }
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setSelectedDrawerRecord(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("returnId")) {
+        url.searchParams.delete("returnId");
+        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    }
+  }, []);
+
+  // Synchronize URL search params with active drawer record
+  useEffect(() => {
+    if (returnIdFromUrl && records.length > 0) {
+      const found = records.find(
+        (r) =>
+          r.returnId === returnIdFromUrl ||
+          r.orderItemId === returnIdFromUrl ||
+          r.trackingId === returnIdFromUrl,
+      );
+      if (found) {
+        setSelectedDrawerRecord(found);
+      }
+    } else if (!returnIdFromUrl) {
+      setSelectedDrawerRecord(null);
+    }
+  }, [returnIdFromUrl, records]);
+
+  // Listen to popstate for back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      const urlReturnId = url.searchParams.get("returnId");
+      if (urlReturnId && records.length > 0) {
+        const found = records.find(
+          (r) =>
+            r.returnId === urlReturnId ||
+            r.orderItemId === urlReturnId ||
+            r.trackingId === urlReturnId,
+        );
+        setSelectedDrawerRecord(found || null);
+      } else {
+        setSelectedDrawerRecord(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [records]);
 
   // Default Column Visibility: Primary columns visible by default, secondary hidden
   const defaultVisibility: VisibilityState = {
@@ -145,15 +221,22 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
     invoiceDate: false,
   };
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(defaultVisibility);
 
   // Filtered dataset
   const filteredData = useMemo(() => {
     return records.filter((r) => {
-      if (returnTypeFilter && r.returnType.toLowerCase() !== returnTypeFilter.toLowerCase()) {
+      if (
+        returnTypeFilter &&
+        r.returnType.toLowerCase() !== returnTypeFilter.toLowerCase()
+      ) {
         return false;
       }
-      if (statusFilter && r.returnStatus.toLowerCase() !== statusFilter.toLowerCase()) {
+      if (
+        statusFilter &&
+        r.returnStatus.toLowerCase() !== statusFilter.toLowerCase()
+      ) {
         return false;
       }
       if (commentsFilter === "has_comments") {
@@ -179,7 +262,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
     });
   }, [records, returnTypeFilter, statusFilter, commentsFilter, globalFilter]);
 
-  const hasActiveFilters = Boolean(globalFilter || returnTypeFilter || statusFilter || commentsFilter);
+  const hasActiveFilters = Boolean(
+    globalFilter || returnTypeFilter || statusFilter || commentsFilter,
+  );
 
   const handleResetFilters = () => {
     setGlobalFilter("");
@@ -240,7 +325,11 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
           </Button>
         ),
         cell: ({ row }) => (
-          <CompactIdCell id={row.original.returnId} label="Return ID" maxChars={14} />
+          <CompactIdCell
+            id={row.original.returnId}
+            label="Return ID"
+            maxChars={14}
+          />
         ),
       },
 
@@ -250,7 +339,11 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
         accessorKey: "trackingId",
         header: "Tracking ID",
         cell: ({ row }) => (
-          <CompactIdCell id={row.original.trackingId} label="Tracking ID" maxChars={12} />
+          <CompactIdCell
+            id={row.original.trackingId}
+            label="Tracking ID"
+            maxChars={12}
+          />
         ),
       },
 
@@ -260,7 +353,11 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
         accessorKey: "shipmentId",
         header: "Shipment ID",
         cell: ({ row }) => (
-          <CompactIdCell id={row.original.shipmentId} label="Shipment ID" maxChars={12} />
+          <CompactIdCell
+            id={row.original.shipmentId}
+            label="Shipment ID"
+            maxChars={12}
+          />
         ),
       },
 
@@ -293,7 +390,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="font-mono text-xs max-w-xs">
-              <p className="text-[10px] text-muted-foreground font-sans uppercase">SKU</p>
+              <p className="text-[10px] text-muted-foreground font-sans uppercase">
+                SKU
+              </p>
               <p className="font-semibold">{row.original.sku}</p>
             </TooltipContent>
           </Tooltip>
@@ -313,7 +412,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs max-w-sm">
-              <p className="text-[10px] text-muted-foreground uppercase">Product Title</p>
+              <p className="text-[10px] text-muted-foreground uppercase">
+                Product Title
+              </p>
               <p className="font-medium">{row.original.product}</p>
             </TooltipContent>
           </Tooltip>
@@ -345,7 +446,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs max-w-xs">
-              <p className="text-[10px] text-muted-foreground uppercase">Return Reason</p>
+              <p className="text-[10px] text-muted-foreground uppercase">
+                Return Reason
+              </p>
               <p>{row.original.returnReason}</p>
               {row.original.returnSubReason && (
                 <p className="text-muted-foreground/80 mt-1 text-[11px]">
@@ -395,7 +498,10 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                   </span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs max-w-sm break-words">
+              <TooltipContent
+                side="top"
+                className="text-xs max-w-sm break-words"
+              >
                 <div className="space-y-1">
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">
                     Flipkart Return Comment
@@ -414,7 +520,10 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
         accessorKey: "returnStatus",
         header: "Status",
         cell: ({ row }) => (
-          <StatusBadge status={formatReturnStatus(row.original.returnStatus)} className="text-[11px]" />
+          <StatusBadge
+            status={formatReturnStatus(row.original.returnStatus)}
+            className="text-[11px]"
+          />
         ),
       },
 
@@ -477,7 +586,11 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
       // 13. Actions Column (Sticky Right: 0px)
       {
         id: "actions",
-        header: () => <span className="text-xs font-semibold text-muted-foreground">Action</span>,
+        header: () => (
+          <span className="text-xs font-semibold text-muted-foreground">
+            Action
+          </span>
+        ),
         cell: ({ row }) => {
           const rec = row.original;
           return (
@@ -489,7 +602,7 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedDrawerRecord(rec);
+                      handleOpenDetails(rec);
                     }}
                     className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
                   >
@@ -511,8 +624,13 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                     <span className="sr-only">Open menu</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-popover text-popover-foreground border-border">
-                  <DropdownMenuLabel className="text-xs">Actions</DropdownMenuLabel>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 bg-popover text-popover-foreground border-border"
+                >
+                  <DropdownMenuLabel className="text-xs">
+                    Actions
+                  </DropdownMenuLabel>
                   <DropdownMenuItem
                     onClick={() => openOrderJourney(rec.orderId)}
                     className="text-xs gap-2 cursor-pointer font-medium"
@@ -521,7 +639,7 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                     Open Order Journey
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => setSelectedDrawerRecord(rec)}
+                    onClick={() => handleOpenDetails(rec)}
                     className="text-xs gap-2 cursor-pointer"
                   >
                     <Eye className="h-3.5 w-3.5" />
@@ -537,7 +655,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                   </DropdownMenuItem>
                   {rec.trackingId && (
                     <DropdownMenuItem
-                      onClick={() => navigator.clipboard.writeText(rec.trackingId)}
+                      onClick={() =>
+                        navigator.clipboard.writeText(rec.trackingId)
+                      }
                       className="text-xs gap-2 font-mono cursor-pointer"
                     >
                       <Copy className="h-3.5 w-3.5" />
@@ -555,7 +675,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                   )}
                   {rec.comments && (
                     <DropdownMenuItem
-                      onClick={() => navigator.clipboard.writeText(rec.comments!)}
+                      onClick={() =>
+                        navigator.clipboard.writeText(rec.comments!)
+                      }
                       className="text-xs gap-2 cursor-pointer"
                     >
                       <MessageSquare className="h-3.5 w-3.5" />
@@ -599,11 +721,16 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
 
   // Export filtered rows to Excel (preserves Comments field)
   const handleExport = () => {
-    const rowsToExport = table.getFilteredRowModel().rows.map((r) => r.original);
+    const rowsToExport = table
+      .getFilteredRowModel()
+      .rows.map((r) => r.original);
     const ws = XLSX.utils.json_to_sheet(rowsToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Returns");
-    XLSX.writeFile(wb, `${fileName}_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(
+      wb,
+      `${fileName}_Export_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -634,15 +761,23 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
           {/* Return Type Filter */}
           <Select
             value={returnTypeFilter}
-            onValueChange={(val) => setReturnTypeFilter(val === "ALL" ? "" : val)}
+            onValueChange={(val) =>
+              setReturnTypeFilter(val === "ALL" ? "" : val)
+            }
           >
             <SelectTrigger className="h-9 w-36 text-xs bg-background">
               <SelectValue placeholder="Return Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL" className="text-xs">All Types</SelectItem>
-              <SelectItem value="customer_return" className="text-xs">Customer Returns</SelectItem>
-              <SelectItem value="courier_return" className="text-xs">Courier Returns</SelectItem>
+              <SelectItem value="ALL" className="text-xs">
+                All Types
+              </SelectItem>
+              <SelectItem value="customer_return" className="text-xs">
+                Customer Returns
+              </SelectItem>
+              <SelectItem value="courier_return" className="text-xs">
+                Courier Returns
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -655,10 +790,18 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL" className="text-xs">All Statuses</SelectItem>
-              <SelectItem value="in_transit" className="text-xs">In Transit</SelectItem>
-              <SelectItem value="start" className="text-xs">Start</SelectItem>
-              <SelectItem value="completed" className="text-xs">Completed</SelectItem>
+              <SelectItem value="ALL" className="text-xs">
+                All Statuses
+              </SelectItem>
+              <SelectItem value="in_transit" className="text-xs">
+                In Transit
+              </SelectItem>
+              <SelectItem value="start" className="text-xs">
+                Start
+              </SelectItem>
+              <SelectItem value="completed" className="text-xs">
+                Completed
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -671,9 +814,15 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               <SelectValue placeholder="Comments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL" className="text-xs">All Comments</SelectItem>
-              <SelectItem value="has_comments" className="text-xs">Has Comments</SelectItem>
-              <SelectItem value="no_comments" className="text-xs">No Comments</SelectItem>
+              <SelectItem value="ALL" className="text-xs">
+                All Comments
+              </SelectItem>
+              <SelectItem value="has_comments" className="text-xs">
+                Has Comments
+              </SelectItem>
+              <SelectItem value="no_comments" className="text-xs">
+                No Comments
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -694,12 +843,19 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
         <div className="flex items-center gap-2 self-end lg:self-auto shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs bg-background">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs bg-background"
+              >
                 <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
                 Columns
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto bg-popover text-popover-foreground border-border">
+            <DropdownMenuContent
+              align="end"
+              className="w-56 max-h-80 overflow-y-auto bg-popover text-popover-foreground border-border"
+            >
               <DropdownMenuLabel className="text-xs flex items-center justify-between">
                 <span>Toggle Columns</span>
                 <button
@@ -719,7 +875,10 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                       key={key}
                       checked={isVisible}
                       onCheckedChange={(checked) =>
-                        setColumnVisibility((prev) => ({ ...prev, [key]: checked }))
+                        setColumnVisibility((prev) => ({
+                          ...prev,
+                          [key]: checked,
+                        }))
                       }
                       className="text-xs capitalize cursor-pointer"
                     >
@@ -748,7 +907,9 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
         {filteredData.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground space-y-2">
             <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="font-medium text-foreground">No matching return records found</p>
+            <p className="font-medium text-foreground">
+              No matching return records found
+            </p>
             {hasActiveFilters && (
               <Button
                 variant="outline"
@@ -761,11 +922,14 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
             )}
           </div>
         ) : (
-          <div className="relative w-full overflow-x-auto">
+          <div className="relative w-full overflow-x-auto custom-scrollbar">
             <Table className="w-full text-xs border-collapse">
               <TableHeader className="border-b border-border bg-muted/90 sticky top-0 z-30">
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-border">
+                  <TableRow
+                    key={headerGroup.id}
+                    className="hover:bg-transparent border-b border-border"
+                  >
                     {headerGroup.headers.map((header) => {
                       const isExpander = header.id === "expander";
                       const isReturnId = header.id === "returnId";
@@ -778,15 +942,18 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                             isExpander
                               ? "sticky left-0 bg-muted z-30 w-10 min-w-10 text-center p-0"
                               : isReturnId
-                              ? "sticky left-10 bg-muted z-30 min-w-[160px] shadow-[1px_0_0_0_var(--border)] border-r border-border/60"
-                              : isActions
-                              ? "sticky right-0 bg-muted z-30 min-w-[70px] text-right shadow-[-1px_0_0_0_var(--border)] border-l border-border/60"
-                              : ""
+                                ? "sticky left-10 bg-muted z-30 min-w-40 shadow-[1px_0_0_0_var(--border)] border-r border-border/60"
+                                : isActions
+                                  ? "sticky right-0 bg-muted z-30 min-w-17.5 text-right shadow-[-1px_0_0_0_var(--border)] border-l border-border/60"
+                                  : ""
                           }`}
                         >
                           {header.isPlaceholder
                             ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
                         </TableHead>
                       );
                     })}
@@ -796,6 +963,12 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
               <TableBody>
                 {table.getRowModel().rows.map((row, index) => {
                   const isEven = index % 2 === 0;
+                  const isExpanded = row.getIsExpanded();
+                  const stickyBg = isExpanded
+                    ? "bg-muted group-hover:bg-muted"
+                    : isEven
+                      ? "bg-card group-hover:bg-muted/80 dark:group-hover:bg-muted/70"
+                      : "bg-secondary group-hover:bg-muted/80 dark:group-hover:bg-muted/70";
 
                   return (
                     <React.Fragment key={row.id}>
@@ -803,10 +976,12 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                       <TableRow
                         onClick={() => row.toggleExpanded()}
                         className={`group transition-colors border-b border-border/70 cursor-pointer ${
-                          isEven
-                            ? "bg-card hover:bg-muted/70 dark:hover:bg-muted/60"
-                            : "bg-muted/25 hover:bg-muted/70 dark:hover:bg-muted/60"
-                        } ${row.getIsExpanded() ? "!bg-muted/40" : ""}`}
+                          isExpanded
+                            ? "bg-muted/50 dark:bg-muted/40"
+                            : isEven
+                              ? "bg-card hover:bg-muted/60 dark:hover:bg-muted/50"
+                              : "bg-secondary/40 hover:bg-muted/60 dark:hover:bg-muted/50"
+                        }`}
                       >
                         {row.getVisibleCells().map((cell) => {
                           const isExpander = cell.column.id === "expander";
@@ -818,31 +993,18 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                               key={cell.id}
                               className={`py-2.5 px-3 align-middle transition-colors ${
                                 isExpander
-                                  ? `sticky left-0 z-20 w-10 min-w-10 text-center p-0 ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } ${row.getIsExpanded() ? "!bg-muted/40" : ""}`
+                                  ? `sticky left-0 z-20 w-10 min-w-10 text-center p-0 ${stickyBg}`
                                   : isReturnId
-                                  ? `sticky left-10 z-20 min-w-[160px] ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } shadow-[1px_0_0_0_var(--border)] border-r border-border/60 ${
-                                      row.getIsExpanded() ? "!bg-muted/40" : ""
-                                    }`
-                                  : isActions
-                                  ? `sticky right-0 z-20 min-w-[70px] text-right ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } shadow-[-1px_0_0_0_var(--border)] border-l border-border/60 ${
-                                      row.getIsExpanded() ? "!bg-muted/40" : ""
-                                    }`
-                                  : ""
+                                    ? `sticky left-10 z-20 min-w-40 ${stickyBg} shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
+                                    : isActions
+                                      ? `sticky right-0 z-20 min-w-17.5 text-right ${stickyBg} shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
+                                      : ""
                               }`}
                             >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
                             </TableCell>
                           );
                         })}
@@ -851,9 +1013,12 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                       {/* Inline Expanded Row */}
                       {row.getIsExpanded() && (
                         <TableRow className="bg-muted/30 border-b border-border hover:bg-muted/30">
-                          <TableCell colSpan={row.getVisibleCells().length} className="p-4 sm:p-5">
+                          <TableCell
+                            colSpan={row.getVisibleCells().length}
+                            className="p-4 sm:p-5"
+                          >
                             <div className="space-y-3">
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
                                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                                   Return Details Summary
                                 </span>
@@ -862,7 +1027,7 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedDrawerRecord(row.original);
+                                    handleOpenDetails(row.original);
                                   }}
                                   className="h-7 text-xs gap-1.5 bg-background shadow-xs cursor-pointer"
                                 >
@@ -887,36 +1052,70 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
                               {/* Quick Grid Breakdown */}
                               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs bg-card p-3.5 rounded-lg border border-border shadow-xs">
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Order ID</span>
-                                  <p className="font-mono font-medium text-foreground select-all">{row.original.orderId || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Order ID
+                                  </span>
+                                  <p className="font-mono font-medium text-foreground select-all">
+                                    {row.original.orderId || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Vendor</span>
-                                  <p className="font-medium text-foreground">{row.original.vendorName || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Vendor
+                                  </span>
+                                  <p className="font-medium text-foreground">
+                                    {row.original.vendorName || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Location</span>
-                                  <p className="font-medium text-foreground">{row.original.locationName || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Location
+                                  </span>
+                                  <p className="font-medium text-foreground">
+                                    {row.original.locationName || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">FF Type</span>
-                                  <p className="font-medium text-foreground">{row.original.ffType || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    FF Type
+                                  </span>
+                                  <p className="font-medium text-foreground">
+                                    {row.original.ffType || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Completion</span>
-                                  <p className="font-medium text-foreground">{row.original.completionStatus || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Completion
+                                  </span>
+                                  <p className="font-medium text-foreground">
+                                    {row.original.completionStatus || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Delivery Promise</span>
-                                  <p className="font-mono text-foreground">{formatDate(row.original.returnDeliveryPromiseDate)}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Delivery Promise
+                                  </span>
+                                  <p className="font-mono text-foreground">
+                                    {formatDate(
+                                      row.original.returnDeliveryPromiseDate,
+                                    )}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">FSN</span>
-                                  <p className="font-mono text-foreground select-all">{row.original.fsn || "-"}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    FSN
+                                  </span>
+                                  <p className="font-mono text-foreground select-all">
+                                    {row.original.fsn || "-"}
+                                  </p>
                                 </div>
                                 <div>
-                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">Quantity</span>
-                                  <p className="font-medium text-foreground">{row.original.quantity}</p>
+                                  <span className="text-muted-foreground text-[10px] uppercase font-semibold">
+                                    Quantity
+                                  </span>
+                                  <p className="font-medium text-foreground">
+                                    {row.original.quantity}
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -948,15 +1147,26 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
             </NativeSelect>
             <span className="hidden sm:inline">•</span>
             <span>
-              Showing <strong className="text-foreground">{table.getRowModel().rows.length}</strong> of{" "}
-              <strong className="text-foreground">{filteredData.length}</strong> returns
+              Showing{" "}
+              <strong className="text-foreground">
+                {table.getRowModel().rows.length}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-foreground">{filteredData.length}</strong>{" "}
+              returns
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground mr-1">
-              Page <strong className="text-foreground">{table.getState().pagination.pageIndex + 1}</strong> of{" "}
-              <strong className="text-foreground">{table.getPageCount() || 1}</strong>
+              Page{" "}
+              <strong className="text-foreground">
+                {table.getState().pagination.pageIndex + 1}
+              </strong>{" "}
+              of{" "}
+              <strong className="text-foreground">
+                {table.getPageCount() || 1}
+              </strong>
             </span>
 
             <div className="flex items-center gap-1">
@@ -1008,7 +1218,7 @@ export function ReturnsDataTable({ records, fileName = "Flipkart_Returns" }: Ret
       {/* Row Details Side Drawer */}
       <ReturnDetailsSheet
         isOpen={Boolean(selectedDrawerRecord)}
-        onClose={() => setSelectedDrawerRecord(null)}
+        onClose={handleCloseDetails}
         record={selectedDrawerRecord}
       />
     </div>

@@ -98,18 +98,26 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
     const url = new URL(window.location.href);
     const skuParam = url.searchParams.get("sku");
     if (skuParam) {
-      const match = skus.find((s) => s.sku.toLowerCase() === skuParam.toLowerCase());
+      const decoded = decodeURIComponent(skuParam).replace(/\+/g, " ").trim().toLowerCase();
+      const match = skus.find(
+        (s) => s.sku.toLowerCase() === decoded || s.sku.toLowerCase().includes(decoded)
+      );
       if (match) {
         setSelectedSku(match);
       }
+      setGlobalFilter(decodeURIComponent(skuParam).replace(/\+/g, " "));
     }
 
     const handlePopState = () => {
       const currentUrl = new URL(window.location.href);
       const currentSkuParam = currentUrl.searchParams.get("sku");
       if (currentSkuParam) {
-        const match = skus.find((s) => s.sku.toLowerCase() === currentSkuParam.toLowerCase());
+        const decoded = decodeURIComponent(currentSkuParam).replace(/\+/g, " ").trim().toLowerCase();
+        const match = skus.find(
+          (s) => s.sku.toLowerCase() === decoded || s.sku.toLowerCase().includes(decoded)
+        );
         setSelectedSku(match || null);
+        setGlobalFilter(decodeURIComponent(currentSkuParam).replace(/\+/g, " "));
       } else {
         setSelectedSku(null);
       }
@@ -555,7 +563,7 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
             <p className="font-medium text-foreground">No matching SKU financial records found</p>
           </div>
         ) : (
-          <div className="relative w-full overflow-x-auto">
+          <div className="relative w-full overflow-x-auto custom-scrollbar">
             <Table className="w-full text-xs border-collapse">
               <TableHeader className="border-b border-border bg-muted/90 sticky top-0 z-30">
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -587,6 +595,9 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
               <TableBody>
                 {table.getRowModel().rows.map((row, index) => {
                   const isEven = index % 2 === 0;
+                  const stickyBg = isEven
+                    ? "bg-card group-hover:bg-muted/80 dark:group-hover:bg-muted/70"
+                    : "bg-secondary group-hover:bg-muted/80 dark:group-hover:bg-muted/70";
 
                   return (
                     <TableRow
@@ -594,8 +605,8 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
                       onClick={() => handleSelectSku(row.original)}
                       className={`group transition-colors border-b border-border/70 cursor-pointer ${
                         isEven
-                          ? "bg-card hover:bg-muted/70 dark:hover:bg-muted/60"
-                          : "bg-muted/25 hover:bg-muted/70 dark:hover:bg-muted/60"
+                          ? "bg-card hover:bg-muted/60 dark:hover:bg-muted/50"
+                          : "bg-secondary/40 hover:bg-muted/60 dark:hover:bg-muted/50"
                       }`}
                     >
                       {row.getVisibleCells().map((cell) => {
@@ -607,17 +618,9 @@ export function SkuPnlTable({ skus, fileName = "Flipkart_SKU_PnL", onSelectOrder
                             key={cell.id}
                             className={`py-2.5 px-3 align-middle transition-colors ${
                               isSku
-                                ? `sticky left-0 z-20 min-w-[180px] ${
-                                    isEven
-                                      ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                      : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                  } shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
+                                ? `sticky left-0 z-20 min-w-[180px] ${stickyBg} shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
                                 : isActions
-                                ? `sticky right-0 z-20 min-w-[50px] text-right ${
-                                    isEven
-                                      ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                      : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                  } shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
+                                ? `sticky right-0 z-20 min-w-[50px] text-right ${stickyBg} shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
                                 : ""
                             }`}
                           >

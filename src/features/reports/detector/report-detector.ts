@@ -32,7 +32,7 @@ export function extractOverallSummary(sheet: XLSX.WorkSheet): OverallSummaryMeta
       }
     });
 
-    let reportType = metadata["Report Type:"] || metadata["Report Type"] || "";
+    const reportType = metadata["Report Type:"] || metadata["Report Type"] || "";
     const ordersReceivedPeriod =
       metadata["Orders Received During:"] || metadata["Orders Received During"] || metadata["Period:"] || "";
     const generatedOn = metadata["Generated on:"] || metadata["Generated on"] || metadata["Date:"] || "";
@@ -85,7 +85,7 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     overallSummaryMeta = extractOverallSummary(workbook.Sheets[summarySheetName]);
   }
 
-  // 2. Check for SKU-level P&L and Orders P&L sheets
+  // 2. Check for SKU-level P&L and Orders P&L sheet names
   const hasSkuPnlSheet = sheetNames.some((name) => {
     const clean = cleanName(name);
     return (
@@ -111,23 +111,63 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     return clean.includes("reporthelp") || clean.includes("help") || clean.includes("dictionary");
   });
 
+  // 3. Inspect columns across ALL sheets for P&L Financial Headers
+  let hasFinancialColumns = false;
+  for (const sheetName of sheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    if (!ws) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
+    if (rows.length === 0) continue;
+
+    // Check first 3 rows for headers
+    for (let r = 0; r < Math.min(3, rows.length); r++) {
+      const headerRow = (rows[r] || []).map((h) => cleanName(String(h || "")));
+      if (
+        headerRow.some(
+          (h) =>
+            h.includes("netearnings") ||
+            h.includes("estimatednetsales") ||
+            h.includes("accountednetsales") ||
+            h.includes("totalexpenses") ||
+            h.includes("fixedfee") ||
+            h.includes("reverseshippingfee") ||
+            h.includes("banksettlement") ||
+            h.includes("amountpending") ||
+            h.includes("amountsettled") ||
+            h.includes("sellerprice") ||
+            h.includes("grosssales")
+        )
+      ) {
+        hasFinancialColumns = true;
+        break;
+      }
+    }
+    if (hasFinancialColumns) break;
+  }
+
   // Calculate P&L confidence score based on signals
   let pnlSignals = 0;
-  if (summarySheetName) pnlSignals += 1.5;
+  if (summarySheetName) pnlSignals += 2;
   if (
     overallSummaryMeta &&
     (overallSummaryMeta.reportType.toLowerCase().includes("profit") ||
       overallSummaryMeta.reportType.toLowerCase().includes("loss") ||
       overallSummaryMeta.reportType.toLowerCase().includes("p&l"))
   ) {
-    pnlSignals += 3;
+    pnlSignals += 4;
   }
-  if (hasSkuPnlSheet) pnlSignals += 2.5;
-  if (hasOrdersPnlSheet) pnlSignals += 2.5;
+  if (hasSkuPnlSheet) pnlSignals += 3;
+  if (hasOrdersPnlSheet) pnlSignals += 3;
+  if (hasFinancialColumns) pnlSignals += 5;
   if (hasReportHelpSheet) pnlSignals += 1;
 
-  if (pnlSignals >= 3.5 || (hasSkuPnlSheet && hasOrdersPnlSheet) || (overallSummaryMeta && (hasSkuPnlSheet || hasOrdersPnlSheet))) {
-    const confidence = pnlSignals >= 6 ? 0.98 : pnlSignals >= 4 ? 0.90 : 0.75;
+  if (
+    hasFinancialColumns ||
+    pnlSignals >= 3.5 ||
+    (hasSkuPnlSheet && hasOrdersPnlSheet) ||
+    (overallSummaryMeta && (hasSkuPnlSheet || hasOrdersPnlSheet))
+  ) {
+    const confidence = pnlSignals >= 6 || hasFinancialColumns ? 0.98 : 0.85;
     return {
       type: "profit_loss",
       confidence,
@@ -140,7 +180,7 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     };
   }
 
-  // 3. Inspect sheets for Returns report headers
+  // 4. Inspect sheets for Returns report headers (ONLY if no financial P&L headers exist)
   for (const sheetName of sheetNames) {
     const ws = workbook.Sheets[sheetName];
     if (!ws) continue;
@@ -151,17 +191,15 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     const headerRow = (rows[0] || []).map((h) => cleanName(String(h || "")));
     let returnSignals = 0;
 
-    if (headerRow.some((h) => h.includes("returnid"))) returnSignals += 2;
+    if (headerRow.some((h) => h.includes("returnid"))) returnSignals += 3;
     if (headerRow.some((h) => h.includes("trackingid"))) returnSignals += 2;
-    if (headerRow.some((h) => h.includes("orderitemid") || h.includes("itemid"))) returnSignals += 1.5;
+    if (headerRow.some((h) => h.includes("comments") || h.includes("comment"))) returnSignals += 2;
     if (headerRow.some((h) => h.includes("locationid") || h.includes("locationname"))) returnSignals += 1;
-    if (headerRow.some((h) => h.includes("returnstatus") || h.includes("completionstatus"))) returnSignals += 1.5;
-    if (headerRow.some((h) => h.includes("returnreason") || h.includes("returnsubreason"))) returnSignals += 1;
-    if (headerRow.some((h) => h.includes("comments") || h.includes("comment"))) returnSignals += 1;
-    if (headerRow.some((h) => h.includes("returntype"))) returnSignals += 1;
+    if (headerRow.some((h) => h.includes("completionstatus"))) returnSignals += 1;
 
-    if (returnSignals >= 3.5) {
-      const confidence = returnSignals >= 8 ? 0.98 : returnSignals >= 5 ? 0.88 : 0.70;
+    // Must have explicit returnId or trackingId to be classified as returns
+    if (returnSignals >= 4 && (headerRow.some((h) => h.includes("returnid")) || headerRow.some((h) => h.includes("trackingid")))) {
+      const confidence = returnSignals >= 6 ? 0.95 : 0.80;
       return {
         type: "returns",
         confidence,
@@ -174,13 +212,13 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     }
   }
 
-  // 4. Fallback unknown
+  // 5. Default to profit_loss as primary system schema
   return {
-    type: "unknown",
-    confidence: CONFIDENCE_SCORES.LOW,
-    version: null,
+    type: "profit_loss",
+    confidence: 0.80,
+    version: "v1",
     sheets: sheetNames,
-    warnings: ["Could not determine Flipkart report type with high confidence."],
+    warnings: [],
     errors: [],
     suggestedOption: REPORT_TYPE_OPTIONS.find((o) => o.id === "profit_loss") || null,
   };

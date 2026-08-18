@@ -1189,7 +1189,7 @@ export function OrdersPnlTable({
             </p>
           </div>
         ) : (
-          <div className="relative w-full overflow-x-auto">
+          <div className="relative w-full overflow-x-auto custom-scrollbar">
             <Table className="w-full text-xs border-collapse">
               <TableHeader className="border-b border-border bg-muted/90 sticky top-0 z-30">
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -1231,15 +1231,22 @@ export function OrdersPnlTable({
                   const isExp =
                     viewMode === "order" &&
                     (expandedOrders.has(orderId) || autoExpanded.has(orderId));
+                  const stickyBg = isExp
+                    ? "bg-muted group-hover:bg-muted"
+                    : isEven
+                      ? "bg-card group-hover:bg-muted/80 dark:group-hover:bg-muted/70"
+                      : "bg-secondary group-hover:bg-muted/80 dark:group-hover:bg-muted/70";
 
                   return (
                     <React.Fragment key={row.id}>
                       <TableRow
                         onClick={() => openOrderJourney(orderId)}
                         className={`group transition-colors border-b border-border/70 cursor-pointer ${
-                          isEven
-                            ? "bg-card hover:bg-muted/70 dark:hover:bg-muted/60"
-                            : "bg-muted/25 hover:bg-muted/70 dark:hover:bg-muted/60"
+                          isExp
+                            ? "bg-muted/50 dark:bg-muted/40"
+                            : isEven
+                              ? "bg-card hover:bg-muted/60 dark:hover:bg-muted/50"
+                              : "bg-secondary/40 hover:bg-muted/60 dark:hover:bg-muted/50"
                         }`}
                       >
                         {row.getVisibleCells().map((cell) => {
@@ -1251,17 +1258,9 @@ export function OrdersPnlTable({
                               key={cell.id}
                               className={`py-2.5 px-3 align-middle transition-colors ${
                                 isOrderId
-                                  ? `sticky left-0 z-20 min-w-[210px] ${
-                                      isEven
-                                        ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                        : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                    } shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
+                                  ? `sticky left-0 z-20 min-w-[210px] ${stickyBg} shadow-[1px_0_0_0_var(--border)] border-r border-border/60`
                                   : isActions
-                                    ? `sticky right-0 z-20 min-w-[95px] text-right ${
-                                        isEven
-                                          ? "bg-card group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                          : "bg-muted/25 group-hover:bg-muted/70 dark:group-hover:bg-muted/60"
-                                      } shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
+                                    ? `sticky right-0 z-20 min-w-[95px] text-right ${stickyBg} shadow-[-1px_0_0_0_var(--border)] border-l border-border/60`
                                     : ""
                               }`}
                             >

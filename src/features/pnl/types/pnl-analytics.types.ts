@@ -28,6 +28,9 @@ export interface SkuPnlAnalytics {
 
   grossUnits: number;
   returnedCancelledUnits: number;
+  rtoUnits?: number;
+  rvpUnits?: number;
+  cancelledUnits?: number;
   netUnits: number;
   returnRate: number;
 

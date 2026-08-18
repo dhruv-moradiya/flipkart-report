@@ -2,14 +2,17 @@
 
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
 import * as XLSX from "xlsx";
+import { useQueryClient } from "@tanstack/react-query";
 import { parseFlipkartReturnsFile } from "../features/reports/parsers/flipkart-returns.parser";
 import { parseFlipkartPnlReport } from "../features/reports/parsers/flipkart-pnl.parser";
 import { detectReportType } from "../features/reports/detector/report-detector";
 import { ReportType, ReportDetectionResult } from "../features/reports/types/report.types";
 import { ParserDiagnostics } from "../features/reports/validation/parser-diagnostics";
 import { useExcelData } from "@/context/excel-context";
+import { apiClient } from "@/lib/api-client";
 
 export function useExcelParser() {
+  const queryClient = useQueryClient();
   const {
     activeReportType,
     setActiveReportType,
@@ -25,6 +28,7 @@ export function useExcelParser() {
     uploadedReportsState,
     setParseResult,
     setPnlReport,
+    loadReportFromBackend,
     clearReturnsData,
     clearPnlData,
     clearData,
@@ -51,7 +55,13 @@ export function useExcelParser() {
   const [lastValidationDiagnostics, setLastValidationDiagnostics] = useState<ParserDiagnostics | null>(null);
   const [lastParsedFileName, setLastParsedFileName] = useState<string>("");
 
-  const processSelectedReport = async (file: File, reportType: ReportType) => {
+  const processSelectedReport = async (
+    file: File,
+    reportType: ReportType,
+    customReportName?: string,
+    selectedMonth?: number,
+    selectedYear?: number
+  ) => {
     setIsTypeDialogOpen(false);
     setError(null);
     setIsParsing(true);
@@ -60,6 +70,41 @@ export function useExcelParser() {
       if (reportType === "profit_loss" || reportType === "sku_pnl_orders_pnl") {
         const result = await parseFlipkartPnlReport(file);
         setPnlReport(result);
+
+        const finalFileName = customReportName?.trim() || file.name;
+        const reportingPeriod =
+          selectedYear && selectedMonth
+            ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
+            : undefined;
+
+        // Persist to backend database & calculate snapshots permanently
+        try {
+          const importRes = await apiClient.post("/api/reports/import", {
+            fileName: finalFileName,
+            reportingPeriod,
+            userSelectedMonth: selectedMonth,
+            userSelectedYear: selectedYear,
+            summaryMetadata: result.metadata?.rawMetadata || {},
+            skuRecords: result.skuLevel,
+            orderRecords: result.orders,
+            replaceExisting: false,
+          });
+
+          // Immediately invalidate all query caches to show fresh data
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["report-imports"] }),
+            queryClient.invalidateQueries({ queryKey: ["available-periods"] }),
+            queryClient.invalidateQueries({ queryKey: ["actual-profit-overview"] }),
+            queryClient.invalidateQueries({ queryKey: ["sku-performance"] }),
+            queryClient.invalidateQueries({ queryKey: ["all-sku-costs"] }),
+          ]);
+
+          if (importRes.data?.data?._id) {
+            loadReportFromBackend(importRes.data.data._id);
+          }
+        } catch (apiErr) {
+          console.warn("Backend report persistence notification:", apiErr);
+        }
 
         // Prepare diagnostics for validation modal
         if (result.diagnostics) {
@@ -77,33 +122,117 @@ export function useExcelParser() {
             warnings: result.diagnostics.warnings || [],
             errors: [],
           });
-          setLastParsedFileName(file.name);
+          setLastParsedFileName(finalFileName);
           setIsValidationModalOpen(true);
         }
       } else if (reportType === "returns") {
-        const result = await parseFlipkartReturnsFile(file);
-        setParseResult(result);
+        try {
+          const result = await parseFlipkartReturnsFile(file);
+          if (result.errors && result.errors.length > 0) {
+            throw new Error(result.errors.join("\n"));
+          }
+          setParseResult(result);
 
-        if (result.errors && result.errors.length > 0) {
-          throw new Error(result.errors.join("\n"));
+          const finalFileName = customReportName?.trim() || file.name;
+          const reportingPeriod =
+            selectedYear && selectedMonth
+              ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
+              : undefined;
+
+          try {
+            await apiClient.post("/api/reports/returns/import", {
+              fileName: finalFileName,
+              reportingPeriod,
+              userSelectedMonth: selectedMonth,
+              userSelectedYear: selectedYear,
+              summaryMetadata: {},
+              returnRecords: result.records,
+              replaceExisting: false,
+            });
+
+            queryClient.invalidateQueries({ queryKey: ["report-imports"] });
+            queryClient.invalidateQueries({ queryKey: ["available-periods"] });
+          } catch (importErr) {
+            console.error("Backend Returns report auto-import error:", importErr);
+          }
+
+          setLastValidationDiagnostics({
+            reportType: "returns",
+            schemaVersion: "v1",
+            confidence: 0.98,
+            sheetsDetected: result.sheetNames,
+            columnsDetected: 43,
+            hiddenColumnsDetected: 0,
+            mergedRangesDetected: 0,
+            mappedFields: ["returnId", "orderId", "orderItemId", "sku", "product", "returnStatus", "comments"],
+            unknownFields: result.unknownFieldsDetected || [],
+            missingRequiredFields: [],
+            warnings: result.warnings || [],
+            errors: result.errors || [],
+          });
+          setLastParsedFileName(finalFileName);
+          setIsValidationModalOpen(true);
+        } catch (returnsErr: any) {
+          // If returns parser fails, attempt P&L parser as auto-fallback
+          console.warn("Returns parser failed, attempting P&L auto-fallback...", returnsErr);
+          const pnlResult = await parseFlipkartPnlReport(file);
+          if (pnlResult && pnlResult.skuLevel.length > 0) {
+            setPnlReport(pnlResult);
+            const finalFileName = customReportName?.trim() || file.name;
+            const reportingPeriod =
+              selectedYear && selectedMonth
+                ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
+                : undefined;
+
+            try {
+              const importRes = await apiClient.post("/api/reports/import", {
+                fileName: finalFileName,
+                reportingPeriod,
+                userSelectedMonth: selectedMonth,
+                userSelectedYear: selectedYear,
+                summaryMetadata: pnlResult.metadata?.rawMetadata || {},
+                skuRecords: pnlResult.skuLevel,
+                orderRecords: pnlResult.orders,
+                replaceExisting: false,
+              });
+
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["report-imports"] }),
+                queryClient.invalidateQueries({ queryKey: ["available-periods"] }),
+                queryClient.invalidateQueries({ queryKey: ["actual-profit-overview"] }),
+                queryClient.invalidateQueries({ queryKey: ["sku-performance"] }),
+                queryClient.invalidateQueries({ queryKey: ["all-sku-costs"] }),
+              ]);
+
+              if (importRes.data?.data?._id) {
+                loadReportFromBackend(importRes.data.data._id);
+              }
+            } catch (apiErr) {
+              console.warn("Backend report persistence notification:", apiErr);
+            }
+
+            if (pnlResult.diagnostics) {
+              setLastValidationDiagnostics({
+                reportType: "profit_loss",
+                schemaVersion: "v1",
+                confidence: 0.98,
+                sheetsDetected: pnlResult.sheetNames,
+                columnsDetected: pnlResult.diagnostics.ordersColumnsDetected + pnlResult.diagnostics.skuColumnsDetected,
+                hiddenColumnsDetected: 20,
+                mergedRangesDetected: 6,
+                mappedFields: pnlResult.diagnostics.expenseFieldsMapped,
+                unknownFields: pnlResult.diagnostics.unknownFieldsDetected || [],
+                missingRequiredFields: [],
+                warnings: pnlResult.diagnostics.warnings || [],
+                errors: [],
+              });
+              setLastParsedFileName(finalFileName);
+              setIsValidationModalOpen(true);
+            }
+          } else {
+            throw returnsErr;
+          }
         }
-
-        setLastValidationDiagnostics({
-          reportType: "returns",
-          schemaVersion: "v1",
-          confidence: 0.98,
-          sheetsDetected: result.sheetNames,
-          columnsDetected: 43,
-          hiddenColumnsDetected: 0,
-          mergedRangesDetected: 0,
-          mappedFields: ["returnId", "orderId", "orderItemId", "sku", "product", "returnStatus", "comments"],
-          unknownFields: result.unknownFieldsDetected || [],
-          missingRequiredFields: [],
-          warnings: result.warnings || [],
-          errors: result.errors || [],
-        });
-        setLastParsedFileName(file.name);
-        setIsValidationModalOpen(true);
       } else {
         throw new Error(`Report type "${reportType}" is currently under development.`);
       }

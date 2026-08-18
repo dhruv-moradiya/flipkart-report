@@ -1,6 +1,6 @@
 import { ReturnRecord } from "../types/return.types";
 import { TimelineAnalytics, TimelineDataPoint } from "../types/analytics.types";
-import { formatDate, formatISODateOnly } from "../utils/date";
+import { formatDate, formatISODateOnly, toValidDate } from "../utils/date";
 
 /**
  * Calculates Timeline return request analytics
@@ -16,7 +16,7 @@ export function calculateTimelineAnalytics(returns: ReturnRecord[]): TimelineAna
   let maxDate: Date | null = null;
 
   returns.forEach((r) => {
-    const d = r.returnRequestedDate;
+    const d = toValidDate(r.returnRequestedDate);
     if (!d) return;
 
     const time = d.getTime();

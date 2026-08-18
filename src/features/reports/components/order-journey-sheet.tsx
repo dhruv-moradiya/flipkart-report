@@ -1,52 +1,33 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { CopyButton } from "@/components/copy-button";
+import { StatusBadge } from "@/components/excel/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { CopyButton } from "@/components/copy-button";
-import { StatusBadge } from "@/components/excel/status-badge";
-import {
-  ShoppingBag,
-  Package,
-  IndianRupee,
-  Receipt,
-  RotateCcw,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertOctagon,
-  HelpCircle,
-  Layers,
-  ArrowRight,
-  ArrowLeft,
-  Sparkles,
-  CreditCard,
-  MessageSquare,
-  ShieldCheck,
-  Truck,
-} from "lucide-react";
 import { useExcelData } from "@/context/excel-context";
 import {
-  OrderJourney,
-  OrderJourneyItem,
-  JourneyTimelineEvent,
-} from "../models/journey.models";
-import { FinancialBreakdownView } from "./financial-breakdown";
-import { formatINR } from "../excel/value-parser";
+  AlertOctagon,
+  ArrowLeft,
+  Clock,
+  CreditCard,
+  Layers,
+  Package,
+  RotateCcw,
+  ShoppingBag,
+  Sparkles,
+} from "lucide-react";
+import { useMemo } from "react";
 import { formatDate } from "../excel/date-parser";
+import { formatINR } from "../excel/value-parser";
+import { FinancialBreakdownView } from "./financial-breakdown";
 
 export function OrderJourneySheet() {
   const { activeJourney, closeOrderJourney, uploadedReportsState } =
@@ -63,7 +44,11 @@ export function OrderJourneySheet() {
       const s = item.orderStatus.toLowerCase();
       if (s.includes("delivered") || s.includes("completed")) {
         deliveredCount++;
-      } else if (s.includes("return") || s.includes("rto") || s.includes("rvp")) {
+      } else if (
+        s.includes("return") ||
+        s.includes("rto") ||
+        s.includes("rvp")
+      ) {
         returnedCount++;
       } else if (s.includes("cancel")) {
         cancelledCount++;
@@ -81,9 +66,19 @@ export function OrderJourneySheet() {
       status = "RETURNED";
     } else if (cancelledCount === total) {
       status = "CANCELLED";
-    } else if (deliveredCount > 0 && returnedCount > 0 && cancelledCount === 0 && otherCount === 0) {
+    } else if (
+      deliveredCount > 0 &&
+      returnedCount > 0 &&
+      cancelledCount === 0 &&
+      otherCount === 0
+    ) {
       status = "PARTIALLY RETURNED";
-    } else if (deliveredCount > 0 && cancelledCount > 0 && returnedCount === 0 && otherCount === 0) {
+    } else if (
+      deliveredCount > 0 &&
+      cancelledCount > 0 &&
+      returnedCount === 0 &&
+      otherCount === 0
+    ) {
       status = "PARTIALLY CANCELLED";
     } else if (deliveredCount > 0 || returnedCount > 0 || cancelledCount > 0) {
       status = "MIXED";
@@ -112,7 +107,7 @@ export function OrderJourneySheet() {
     >
       <SheetContent
         side="right"
-        className="w-full sm:min-w-3xl lg:min-w-4xl xl:min-w-5xl overflow-y-auto p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl gap-0"
+        className="w-full sm:w-[680px] md:w-[820px] lg:w-[980px] xl:w-[1180px] sm:max-w-[94vw] overflow-y-auto custom-scrollbar p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl gap-0"
       >
         {/* Sticky Top Header with Back Navigation */}
         <SheetHeader className="p-6 border-b border-border bg-card/80 sticky top-0 z-20 backdrop-blur-md space-y-3">
@@ -198,13 +193,20 @@ export function OrderJourneySheet() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Total Items</span>
-                  <p className="text-base font-bold font-mono text-foreground">{activeJourney.itemsCount}</p>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Total Items
+                  </span>
+                  <p className="text-base font-bold font-mono text-foreground">
+                    {activeJourney.itemsCount}
+                  </p>
                   <p className="text-[10px] text-muted-foreground leading-none">
                     {[
-                      statusSummary.deliveredCount > 0 && `${statusSummary.deliveredCount} Del`,
-                      statusSummary.returnedCount > 0 && `${statusSummary.returnedCount} Ret`,
-                      statusSummary.cancelledCount > 0 && `${statusSummary.cancelledCount} Canc`,
+                      statusSummary.deliveredCount > 0 &&
+                        `${statusSummary.deliveredCount} Del`,
+                      statusSummary.returnedCount > 0 &&
+                        `${statusSummary.returnedCount} Ret`,
+                      statusSummary.cancelledCount > 0 &&
+                        `${statusSummary.cancelledCount} Canc`,
                     ]
                       .filter(Boolean)
                       .join(" • ")}
@@ -212,27 +214,39 @@ export function OrderJourneySheet() {
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Selling Price</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Selling Price
+                  </span>
                   <p className="text-base font-bold font-mono text-foreground">
                     {formatINR(activeJourney.totalSellingPrice)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-none">Total customer billing</p>
+                  <p className="text-[10px] text-muted-foreground leading-none">
+                    Total customer billing
+                  </p>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Net Earnings</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Net Earnings
+                  </span>
                   <p
                     className={`text-base font-bold font-mono ${
-                      activeJourney.totalNetEarnings >= 0 ? "text-foreground" : "text-destructive"
+                      activeJourney.totalNetEarnings >= 0
+                        ? "text-foreground"
+                        : "text-destructive"
                     }`}
                   >
                     {formatINR(activeJourney.totalNetEarnings)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-none">After all fees & taxes</p>
+                  <p className="text-[10px] text-muted-foreground leading-none">
+                    After all fees & taxes
+                  </p>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Payout Status</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                    Payout Status
+                  </span>
                   <p className="text-base font-bold font-mono text-foreground">
                     {formatINR(activeJourney.totalAmountSettled)}
                   </p>
@@ -244,22 +258,25 @@ export function OrderJourneySheet() {
             </div>
 
             {/* Diagnostics Alerts */}
-            {activeJourney.diagnostics && activeJourney.diagnostics.length > 0 && (
-              <div className="space-y-2">
-                {activeJourney.diagnostics.map((diag, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-foreground flex items-start gap-2.5"
-                  >
-                    <AlertOctagon className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="font-semibold">{diag.title}</strong>
-                      <p className="text-muted-foreground mt-0.5">{diag.message}</p>
+            {activeJourney.diagnostics &&
+              activeJourney.diagnostics.length > 0 && (
+                <div className="space-y-2">
+                  {activeJourney.diagnostics.map((diag, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-foreground flex items-start gap-2.5"
+                    >
+                      <AlertOctagon className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-semibold">{diag.title}</strong>
+                        <p className="text-muted-foreground mt-0.5">
+                          {diag.message}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
             {/* 2. Item Journeys Section */}
             <div className="space-y-4">
@@ -310,13 +327,19 @@ export function OrderJourneySheet() {
                           </div>
                           {item.sku && (
                             <p className="text-xs text-muted-foreground font-mono mt-1">
-                              SKU: <strong className="text-foreground">{item.sku}</strong>
+                              SKU:{" "}
+                              <strong className="text-foreground">
+                                {item.sku}
+                              </strong>
                             </p>
                           )}
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <StatusBadge status={item.orderStatus} className="text-xs" />
+                          <StatusBadge
+                            status={item.orderStatus}
+                            className="text-xs"
+                          />
                           {item.hasReturn && (
                             <Badge
                               variant="destructive"
@@ -345,7 +368,8 @@ export function OrderJourneySheet() {
                             const isCancel = evt.status === "cancelled";
                             const isReturn = evt.stage.startsWith("RETURN");
                             const isDelivered =
-                              evt.stage.includes("DELIVERY") || evt.stage.includes("DELIVERED");
+                              evt.stage.includes("DELIVERY") ||
+                              evt.stage.includes("DELIVERED");
 
                             return (
                               <div key={eIdx} className="relative group">
@@ -354,10 +378,10 @@ export function OrderJourneySheet() {
                                     isCancel
                                       ? "bg-destructive ring-2 ring-destructive/20"
                                       : isReturn
-                                      ? "bg-rose-500 ring-2 ring-rose-500/20"
-                                      : isDelivered
-                                      ? "bg-emerald-500 ring-2 ring-emerald-500/20"
-                                      : "bg-primary ring-2 ring-primary/20"
+                                        ? "bg-rose-500 ring-2 ring-rose-500/20"
+                                        : isDelivered
+                                          ? "bg-emerald-500 ring-2 ring-emerald-500/20"
+                                          : "bg-primary ring-2 ring-primary/20"
                                   }`}
                                 />
 
@@ -421,35 +445,46 @@ export function OrderJourneySheet() {
                           <dl className="space-y-2 text-xs">
                             {returnRecord?.product && (
                               <div className="flex justify-between items-start gap-2">
-                                <dt className="text-muted-foreground font-medium shrink-0">Product Title:</dt>
+                                <dt className="text-muted-foreground font-medium shrink-0">
+                                  Product Title:
+                                </dt>
                                 <dd className="font-semibold text-foreground text-right text-[11px] truncate max-w-[220px]">
                                   {returnRecord.product}
                                 </dd>
                               </div>
                             )}
                             <div className="flex justify-between">
-                              <dt className="text-muted-foreground font-medium">Quantity:</dt>
+                              <dt className="text-muted-foreground font-medium">
+                                Quantity:
+                              </dt>
                               <dd className="font-mono text-foreground font-semibold tabular-nums">
                                 {item.grossUnits} unit(s)
                               </dd>
                             </div>
                             <div className="flex justify-between">
-                              <dt className="text-muted-foreground font-medium">Fulfillment Type:</dt>
+                              <dt className="text-muted-foreground font-medium">
+                                Fulfillment Type:
+                              </dt>
                               <dd className="font-medium text-foreground">
                                 {item.fulfillmentType || "Standard"}
                               </dd>
                             </div>
                             <div className="flex justify-between">
-                              <dt className="text-muted-foreground font-medium">Payment Mode:</dt>
+                              <dt className="text-muted-foreground font-medium">
+                                Payment Mode:
+                              </dt>
                               <dd className="font-medium text-foreground">
                                 {item.modeOfPayment || "Prepaid"}
                               </dd>
                             </div>
                             {relationship && relationship.matched && (
                               <div className="flex justify-between">
-                                <dt className="text-muted-foreground font-medium">Matching Confidence:</dt>
+                                <dt className="text-muted-foreground font-medium">
+                                  Matching Confidence:
+                                </dt>
                                 <dd className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                                  {(relationship.confidence * 100).toFixed(0)}% ({relationship.source})
+                                  {(relationship.confidence * 100).toFixed(0)}%
+                                  ({relationship.source})
                                 </dd>
                               </div>
                             )}
@@ -464,19 +499,26 @@ export function OrderJourneySheet() {
                           {skuPerformance ? (
                             <dl className="space-y-2 text-xs">
                               <div className="flex justify-between">
-                                <dt className="text-muted-foreground font-medium">SKU Gross Units:</dt>
+                                <dt className="text-muted-foreground font-medium">
+                                  SKU Gross Units:
+                                </dt>
                                 <dd className="font-mono text-foreground font-semibold tabular-nums">
                                   {skuPerformance.grossUnits}
                                 </dd>
                               </div>
                               <div className="flex justify-between">
-                                <dt className="text-muted-foreground font-medium">SKU Return Rate:</dt>
+                                <dt className="text-muted-foreground font-medium">
+                                  SKU Return Rate:
+                                </dt>
                                 <dd className="font-mono text-rose-600 dark:text-rose-400 font-semibold">
-                                  {skuPerformance.returnRate}% ({skuPerformance.returnedCancelledUnits} units)
+                                  {skuPerformance.returnRate}% (
+                                  {skuPerformance.returnedCancelledUnits} units)
                                 </dd>
                               </div>
                               <div className="flex justify-between">
-                                <dt className="text-muted-foreground font-medium">SKU Avg. EPU:</dt>
+                                <dt className="text-muted-foreground font-medium">
+                                  SKU Avg. EPU:
+                                </dt>
                                 <dd className="font-mono text-foreground font-bold tabular-nums">
                                   ₹{skuPerformance.earningsPerUnit}
                                 </dd>
@@ -498,29 +540,49 @@ export function OrderJourneySheet() {
                         <div className="rounded-xl border border-border bg-muted/10 p-4 space-y-3 shadow-2xs">
                           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border pb-2.5 font-sans flex items-center gap-1.5">
                             <CreditCard className="h-4 w-4 text-primary" />
-                            <span>Settlement Payouts ({transactions.length})</span>
+                            <span>
+                              Settlement Payouts ({transactions.length})
+                            </span>
                           </h4>
                           <div className="overflow-x-auto rounded-lg border border-border bg-background">
                             <table className="w-full text-xs">
                               <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
                                 <tr>
                                   <th className="py-2 px-3 text-left">Txn #</th>
-                                  <th className="py-2 px-3 text-right">Amount</th>
-                                  <th className="py-2 px-3 text-left">Reason</th>
-                                  <th className="py-2 px-3 text-center">Status</th>
-                                  <th className="py-2 px-3 text-left">NEFT Ref</th>
+                                  <th className="py-2 px-3 text-right">
+                                    Amount
+                                  </th>
+                                  <th className="py-2 px-3 text-left">
+                                    Reason
+                                  </th>
+                                  <th className="py-2 px-3 text-center">
+                                    Status
+                                  </th>
+                                  <th className="py-2 px-3 text-left">
+                                    NEFT Ref
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border/60">
                                 {transactions.map((tx) => (
-                                  <tr key={tx.transactionIndex} className="hover:bg-muted/30">
-                                    <td className="py-2 px-3 font-mono font-bold">#{tx.transactionIndex}</td>
+                                  <tr
+                                    key={tx.transactionIndex}
+                                    className="hover:bg-muted/30"
+                                  >
+                                    <td className="py-2 px-3 font-mono font-bold">
+                                      #{tx.transactionIndex}
+                                    </td>
                                     <td className="py-2 px-3 font-mono font-bold text-right text-foreground">
                                       {formatINR(tx.transactionAmount)}
                                     </td>
-                                    <td className="py-2 px-3 text-muted-foreground">{tx.reason}</td>
+                                    <td className="py-2 px-3 text-muted-foreground">
+                                      {tx.reason}
+                                    </td>
                                     <td className="py-2 px-3 text-center">
-                                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal">
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] px-1 py-0 h-4 font-normal"
+                                      >
                                         {tx.currentStatus}
                                       </Badge>
                                     </td>
@@ -550,30 +612,53 @@ export function OrderJourneySheet() {
 
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                             <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 space-y-1">
-                              <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 uppercase">Reason</span>
-                              <p className="text-xs font-semibold text-foreground">{returnRecord.returnReason || "Customer Return"}</p>
+                              <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 uppercase">
+                                Reason
+                              </span>
+                              <p className="text-xs font-semibold text-foreground">
+                                {returnRecord.returnReason || "Customer Return"}
+                              </p>
                               {returnRecord.returnSubReason && (
-                                <p className="text-[10px] text-muted-foreground">{returnRecord.returnSubReason}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {returnRecord.returnSubReason}
+                                </p>
                               )}
                             </div>
 
                             <div className="p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-1 text-xs">
-                              <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase">Reverse Tracking</span>
-                              <p className="font-mono font-semibold text-foreground truncate">{returnRecord.trackingId || "—"}</p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5">Status: {returnRecord.returnStatus}</p>
+                              <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase">
+                                Reverse Tracking
+                              </span>
+                              <p className="font-mono font-semibold text-foreground truncate">
+                                {returnRecord.trackingId || "—"}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Status: {returnRecord.returnStatus}
+                              </p>
                             </div>
 
                             <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-1">
-                              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">Condition</span>
-                              <p className="text-xs font-semibold text-foreground">{returnRecord.finalCondition || "Standard Inspection"}</p>
-                              <p className="text-[10px] text-muted-foreground">Status: {returnRecord.completionStatus}</p>
+                              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">
+                                Condition
+                              </span>
+                              <p className="text-xs font-semibold text-foreground">
+                                {returnRecord.finalCondition ||
+                                  "Standard Inspection"}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Status: {returnRecord.completionStatus}
+                              </p>
                             </div>
                           </div>
 
                           {returnRecord.comments && (
                             <div className="p-3 rounded-lg bg-muted/30 border border-border text-xs">
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Customer / Hub Comment</span>
-                              <p className="italic text-foreground/90 font-medium">"{returnRecord.comments}"</p>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">
+                                Customer / Hub Comment
+                              </span>
+                              <p className="italic text-foreground/90 font-medium">
+                                &ldquo;{returnRecord.comments}&rdquo;
+                              </p>
                             </div>
                           )}
                         </div>

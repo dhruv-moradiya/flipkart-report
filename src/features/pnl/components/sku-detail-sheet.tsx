@@ -55,6 +55,9 @@ import {
   ShoppingBag,
   TrendingDown,
   TrendingUp,
+  Truck,
+  Ban,
+  Undo2,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -449,27 +452,45 @@ function SkuOrdersTable({
       )}
 
       {/* TanStack Table using Shadcn Table component */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden shadow-2xs">
-        <Table className="w-full text-xs">
+      <div className="rounded-lg border border-border bg-card overflow-x-auto custom-scrollbar shadow-2xs">
+        <Table className="w-full min-w-[760px] table-fixed text-xs">
           <TableHeader className="bg-muted/60 border-b border-border">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
                 key={headerGroup.id}
                 className="hover:bg-transparent border-b border-border"
               >
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="py-2 px-3 text-xs font-semibold text-muted-foreground font-sans"
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </TableHead>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  let colWidth = "w-auto";
+                  if (header.id === "orderId")
+                    colWidth = "w-[24%] min-w-[170px]";
+                  else if (header.id === "orderItemId")
+                    colWidth = "w-[20%] min-w-[140px]";
+                  else if (header.id === "netUnits")
+                    colWidth = "w-[10%] min-w-[75px]";
+                  else if (header.id === "finalSellingPrice")
+                    colWidth = "w-[12%] min-w-[90px]";
+                  else if (header.id === "netEarnings")
+                    colWidth = "w-[12%] min-w-[90px]";
+                  else if (header.id === "orderStatus")
+                    colWidth = "w-[14%] min-w-[125px]";
+                  else if (header.id === "actions")
+                    colWidth = "w-[8%] min-w-[75px]";
+
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className={`py-2 px-3 text-xs font-semibold text-muted-foreground font-sans ${colWidth}`}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             ))}
           </TableHeader>
@@ -493,17 +514,35 @@ function SkuOrdersTable({
                   }}
                   className="hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/60"
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className="py-2.5 px-3 align-middle"
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    let colWidth = "w-auto";
+                    if (cell.column.id === "orderId")
+                      colWidth = "w-[24%] min-w-[170px]";
+                    else if (cell.column.id === "orderItemId")
+                      colWidth = "w-[20%] min-w-[140px]";
+                    else if (cell.column.id === "netUnits")
+                      colWidth = "w-[10%] min-w-[75px]";
+                    else if (cell.column.id === "finalSellingPrice")
+                      colWidth = "w-[12%] min-w-[90px]";
+                    else if (cell.column.id === "netEarnings")
+                      colWidth = "w-[12%] min-w-[90px]";
+                    else if (cell.column.id === "orderStatus")
+                      colWidth = "w-[14%] min-w-[125px]";
+                    else if (cell.column.id === "actions")
+                      colWidth = "w-[8%] min-w-[75px]";
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={`py-2.5 px-3 align-middle overflow-hidden ${colWidth}`}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             )}
@@ -614,7 +653,7 @@ export function SkuDetailSheet({
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="w-full sm:min-w-3xl lg:min-w-4xl xl:min-w-5xl overflow-y-auto p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl"
+        className="w-full sm:w-[680px] md:w-[820px] lg:w-[980px] xl:w-[1180px] sm:max-w-[94vw] overflow-y-auto custom-scrollbar p-0 flex flex-col bg-background text-foreground border-l border-border shadow-2xl"
       >
         {/* Header */}
         <SheetHeader className="p-6 border-b border-border bg-card/60 sticky top-0 z-10 backdrop-blur-md">
@@ -681,6 +720,98 @@ export function SkuDetailSheet({
                   isPrice
                 />
               </div>
+
+              {/* Detailed Return & Cancellation Breakdown */}
+              {skuData.returnedCancelledUnits > 0 && (
+                <div className="pt-3 border-t border-border/60 space-y-2">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.01em] block">
+                    Breakup ({skuData.returnedCancelledUnits} non-fulfilled
+                    units)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* 1. Cancelled */}
+                    <div className="p-3 px-3 rounded-lg border border-red-500/20  flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 rounded-md bg-red-500/10 text-red-600 dark:text-red-400">
+                          <Ban className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold text-foreground block uppercase">
+                            Cancelled
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Buyer / Seller
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono">
+                        <span className="text-sm font-bold text-red-600 dark:text-red-400">
+                          {skuData.cancelledUnits || 0}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {skuData.grossUnits > 0
+                            ? `${(((skuData.cancelledUnits || 0) / skuData.grossUnits) * 100).toFixed(1)}%`
+                            : "0%"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2. Customer Return (RVP) */}
+                    <div className="p-2.5 rounded-lg border border-amber-500/20  flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          <Undo2 className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold text-foreground block uppercase">
+                            Customer Return
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            RVP (Delivered $\rightarrow$ Return)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono">
+                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                          {skuData.rvpUnits || 0}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {skuData.grossUnits > 0
+                            ? `${(((skuData.rvpUnits || 0) / skuData.grossUnits) * 100).toFixed(1)}%`
+                            : "0%"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Courier Return (RTO) */}
+                    <div className="p-2.5 rounded-lg border border-blue-500/20  flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <Truck className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold text-foreground block uppercase">
+                            Courier Return
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            RTO (In-transit failure)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right font-mono">
+                        <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                          {skuData.rtoUnits || 0}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {skuData.grossUnits > 0
+                            ? `${(((skuData.rtoUnits || 0) / skuData.grossUnits) * 100).toFixed(1)}%`
+                            : "0%"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 2. Financial Economics (Sales, Expenses, Earnings) */}
