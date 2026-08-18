@@ -82,7 +82,7 @@ export interface RelationshipMatch {
   orderItemId: string;
   matched: boolean;
   confidence: number;
-  source: "order_item_id" | "order_id" | "sku" | "none";
+  source: "order_item_id" | "shipment_id" | "return_id" | "tracking_id" | "order_id" | "sku" | "none" | string;
 }
 
 export interface JourneyDiagnostic {

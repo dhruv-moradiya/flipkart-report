@@ -228,6 +228,64 @@ export function buildItemFinancials(
   };
 }
 
+function findMatchingPnl(
+  ret: ReturnRecord,
+  pnlOrders: OrderPnlRecord[]
+): {
+  pnl?: OrderPnlRecord;
+  source: "order_item_id" | "shipment_id" | "return_id" | "tracking_id" | "order_id" | "none";
+} {
+  // 1. Order Item ID Match
+  const retItemId = cleanKey(ret.orderItemId);
+  if (retItemId) {
+    const found = pnlOrders.find((o) => cleanKey(o.orderItemId) === retItemId);
+    if (found) return { pnl: found, source: "order_item_id" };
+  }
+
+  // Helper function to check rawRecord fields
+  const checkRaw = (o: OrderPnlRecord, field: string, val: string): boolean => {
+    if (!o.rawRecord) return false;
+    const targetVal = cleanKey(val);
+    if (!targetVal) return false;
+    return Object.entries(o.rawRecord).some(([k, v]) => {
+      const cleanK = cleanKey(k);
+      return (
+        (cleanK.includes(field) || field.includes(cleanK)) &&
+        cleanKey(String(v)) === targetVal
+      );
+    });
+  };
+
+  // 2. Shipment ID Match
+  if (ret.shipmentId) {
+    const found = pnlOrders.find((o) => checkRaw(o, "shipment", ret.shipmentId));
+    if (found) return { pnl: found, source: "shipment_id" };
+  }
+
+  // 3. Return ID Match
+  if (ret.returnId) {
+    const found = pnlOrders.find(
+      (o) => checkRaw(o, "return id", ret.returnId) || checkRaw(o, "returnid", ret.returnId)
+    );
+    if (found) return { pnl: found, source: "return_id" };
+  }
+
+  // 4. Tracking ID Match
+  if (ret.trackingId) {
+    const found = pnlOrders.find((o) => checkRaw(o, "tracking", ret.trackingId));
+    if (found) return { pnl: found, source: "tracking_id" };
+  }
+
+  // 5. Order ID Match (Fallback)
+  const retOrderId = cleanKey(ret.orderId);
+  if (retOrderId) {
+    const found = pnlOrders.find((o) => cleanKey(o.orderId) === retOrderId);
+    if (found) return { pnl: found, source: "order_id" };
+  }
+
+  return { source: "none" };
+}
+
 /**
  * Builds Complete Order Journey connecting P&L and Returns via Order Item ID
  */
@@ -244,25 +302,38 @@ export function buildOrderJourney(
   const target = cleanKey(identifier);
   const { pnlReport, returnsRecords, skusRanking } = options;
 
-  // 1. Gather all P&L records matching this Order ID or Order Item ID
+  // Resolve target to orderId first, to support querying by item ID or return ID and fetching all items of that order
+  let targetOrderId = target;
+  if (pnlReport && pnlReport.orders) {
+    const found = pnlReport.orders.find((o) => cleanKey(o.orderItemId) === target);
+    if (found) {
+      targetOrderId = cleanKey(found.orderId);
+    }
+  }
+  if (targetOrderId === target && returnsRecords) {
+    const found = returnsRecords.find(
+      (r) => cleanKey(r.orderItemId) === target || cleanKey(r.returnId) === target
+    );
+    if (found && found.orderId) {
+      targetOrderId = cleanKey(found.orderId);
+    }
+  }
+
+  // 1. Gather all P&L records matching this resolved Order ID
   const matchedPnlOrders: OrderPnlRecord[] = [];
   if (pnlReport && pnlReport.orders) {
     pnlReport.orders.forEach((o) => {
-      if (cleanKey(o.orderId) === target || cleanKey(o.orderItemId) === target) {
+      if (cleanKey(o.orderId) === targetOrderId) {
         matchedPnlOrders.push(o);
       }
     });
   }
 
-  // 2. Gather all Returns records matching this Order ID, Order Item ID, or Return ID
+  // 2. Gather all Returns records matching this resolved Order ID
   const matchedReturns: ReturnRecord[] = [];
   if (returnsRecords) {
     returnsRecords.forEach((r) => {
-      if (
-        cleanKey(r.orderId) === target ||
-        cleanKey(r.orderItemId) === target ||
-        cleanKey(r.returnId) === target
-      ) {
+      if (cleanKey(r.orderId) === targetOrderId) {
         matchedReturns.push(r);
       }
     });
@@ -281,7 +352,11 @@ export function buildOrderJourney(
   // Group by Order Item ID (1 Order ID -> N Order Items)
   const itemMap = new Map<
     string,
-    { pnl?: OrderPnlRecord; return?: ReturnRecord; matchSource: "order_item_id" | "order_id" | "none" }
+    {
+      pnl?: OrderPnlRecord;
+      return?: ReturnRecord;
+      matchSource: "order_item_id" | "shipment_id" | "return_id" | "tracking_id" | "order_id" | "none";
+    }
   >();
 
   // Pass 1: Add PnL order items
@@ -290,20 +365,21 @@ export function buildOrderJourney(
     itemMap.set(itemKey, { pnl, matchSource: "none" });
   });
 
-  // Pass 2: Match Returns records primarily by Order Item ID, then secondary by Order ID
+  // Pass 2: Match Returns records using the preferred matching hierarchy
   matchedReturns.forEach((ret) => {
-    const retItemKey = cleanKey(ret.orderItemId);
-    if (retItemKey && itemMap.has(retItemKey)) {
-      const existing = itemMap.get(retItemKey)!;
+    const { pnl, source } = findMatchingPnl(ret, matchedPnlOrders);
+    if (pnl) {
+      const itemKey = cleanKey(pnl.orderItemId);
+      const existing = itemMap.get(itemKey)!;
       existing.return = ret;
-      existing.matchSource = "order_item_id";
+      existing.matchSource = source;
     } else {
-      // If order item not found or only Order ID matched
-      const fallbackKey = retItemKey || cleanKey(ret.orderId);
-      const existing = itemMap.get(fallbackKey) || { matchSource: "none" };
+      // If order item not found, create a return-only item
+      const itemKey = cleanKey(ret.orderItemId) || cleanKey(ret.returnId) || cleanKey(ret.orderId);
+      const existing = itemMap.get(itemKey) || { matchSource: "none" };
       existing.return = ret;
-      existing.matchSource = retItemKey ? "order_item_id" : "order_id";
-      itemMap.set(fallbackKey, existing);
+      existing.matchSource = source;
+      itemMap.set(itemKey, existing);
     }
   });
 
@@ -345,10 +421,19 @@ export function buildOrderJourney(
     totalAmountSettled += financials.amountSettled;
     totalAmountPending += financials.amountPending;
 
+    const confidenceMap: Record<string, number> = {
+      order_item_id: 1.0,
+      shipment_id: 0.9,
+      return_id: 0.8,
+      tracking_id: 0.7,
+      order_id: 0.5,
+      none: 0.0,
+    };
+
     const relationship: RelationshipMatch = {
       orderItemId,
       matched: Boolean(pnl && ret),
-      confidence: entry.matchSource === "order_item_id" ? 1.0 : entry.matchSource === "order_id" ? 0.8 : 0.0,
+      confidence: confidenceMap[entry.matchSource] || 0.0,
       source: entry.matchSource,
     };
 
