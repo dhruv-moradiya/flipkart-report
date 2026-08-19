@@ -1,16 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import {
-  usePeriodComparison,
-  useAvailablePeriods,
-} from "@/hooks/use-actual-profit";
-import { FinancialBasis, SkuPeriodComparison } from "@/types/profit-analytics.types";
 import { ProfitBasisToggle } from "@/components/profit/profit-basis-toggle";
-import { ProfitabilityBadge } from "@/components/profit/profitability-badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -27,20 +19,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowUpDown,
-  ArrowRight,
-  TrendingUp,
-  TrendingDown,
-  Layers,
-  ArrowLeft,
-  Loader2,
-  Calendar,
-} from "lucide-react";
+  useAvailablePeriods,
+  usePeriodComparison,
+} from "@/hooks/use-actual-profit";
+import {
+  FinancialBasis,
+  SkuPeriodComparison,
+} from "@/types/profit-analytics.types";
+import { ArrowLeft, ArrowRight, ArrowUpDown, Loader2 } from "lucide-react";
+import Link from "next/link";
+import React, { useState } from "react";
 
 export default function PeriodComparisonPage() {
   const { data: availablePeriods = [] } = useAvailablePeriods();
 
-  const defaultPeriodA = availablePeriods[availablePeriods.length - 1]?.reportingPeriod || "";
+  const defaultPeriodA =
+    availablePeriods[availablePeriods.length - 1]?.reportingPeriod || "";
   const defaultPeriodB =
     availablePeriods.length >= 2
       ? availablePeriods[availablePeriods.length - 2]?.reportingPeriod
@@ -48,24 +42,37 @@ export default function PeriodComparisonPage() {
 
   const [periodA, setPeriodA] = useState<string>(defaultPeriodA);
   const [periodB, setPeriodB] = useState<string>(defaultPeriodB);
-  const [financialBasis, setFinancialBasis] = useState<FinancialBasis>("netEarnings");
+  const [financialBasis, setFinancialBasis] =
+    useState<FinancialBasis>("netEarnings");
 
   // Sync defaults when availablePeriods loads
   React.useEffect(() => {
     if (!periodA && availablePeriods.length > 0) {
       setPeriodA(availablePeriods[availablePeriods.length - 1].reportingPeriod);
       if (availablePeriods.length >= 2) {
-        setPeriodB(availablePeriods[availablePeriods.length - 2].reportingPeriod);
+        setPeriodB(
+          availablePeriods[availablePeriods.length - 2].reportingPeriod,
+        );
       } else {
         setPeriodB(availablePeriods[0].reportingPeriod);
       }
     }
   }, [availablePeriods, periodA]);
 
-  const { data, isLoading } = usePeriodComparison(periodA, periodB, financialBasis, "netUnits");
+  const { data, isLoading } = usePeriodComparison(
+    periodA,
+    periodB,
+    financialBasis,
+    "netUnits",
+  );
 
-  const renderDelta = (val: number | null, isCurrency = false, isPercent = false) => {
-    if (val === null || val === undefined) return <span className="text-muted-foreground">—</span>;
+  const renderDelta = (
+    val: number | null,
+    isCurrency = false,
+    isPercent = false,
+  ) => {
+    if (val === null || val === undefined)
+      return <span className="text-muted-foreground">—</span>;
 
     const isPositive = val > 0;
     const isNegative = val < 0;
@@ -85,8 +92,8 @@ export default function PeriodComparisonPage() {
           isPositive
             ? "text-emerald-600 dark:text-emerald-400"
             : isNegative
-            ? "text-rose-600 dark:text-rose-400"
-            : "text-muted-foreground"
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-muted-foreground"
         }`}
       >
         {formatted}
@@ -116,13 +123,17 @@ export default function PeriodComparisonPage() {
               Reporting Period Profitability Comparison
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Compare profit, seller costs, payouts & units sold between two monthly P&L reports.
+              Compare profit, seller costs, payouts & units sold between two
+              monthly P&L reports.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <ProfitBasisToggle value={financialBasis} onChange={setFinancialBasis} />
+          <ProfitBasisToggle
+            value={financialBasis}
+            onChange={setFinancialBasis}
+          />
         </div>
       </div>
 
@@ -141,7 +152,10 @@ export default function PeriodComparisonPage() {
                 </SelectTrigger>
                 <SelectContent className="text-xs">
                   {availablePeriods.map((p) => (
-                    <SelectItem key={p.reportingPeriod} value={p.reportingPeriod}>
+                    <SelectItem
+                      key={p.reportingPeriod}
+                      value={p.reportingPeriod}
+                    >
                       {p.periodLabel}
                     </SelectItem>
                   ))}
@@ -164,7 +178,10 @@ export default function PeriodComparisonPage() {
                 </SelectTrigger>
                 <SelectContent className="text-xs">
                   {availablePeriods.map((p) => (
-                    <SelectItem key={p.reportingPeriod} value={p.reportingPeriod}>
+                    <SelectItem
+                      key={p.reportingPeriod}
+                      value={p.reportingPeriod}
+                    >
                       {p.periodLabel}
                     </SelectItem>
                   ))}
@@ -183,7 +200,9 @@ export default function PeriodComparisonPage() {
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="text-xs">Computing month-over-month profit differences...</span>
+          <span className="text-xs">
+            Computing month-over-month profit differences...
+          </span>
         </div>
       ) : !data ? (
         <div className="text-center py-8 text-xs text-muted-foreground">
@@ -204,7 +223,12 @@ export default function PeriodComparisonPage() {
               <div className="text-[11px] text-muted-foreground">
                 {data.aggregate.changes.profitChangePct !== null ? (
                   <>
-                    {renderDelta(data.aggregate.changes.profitChangePct, false, true)} vs baseline
+                    {renderDelta(
+                      data.aggregate.changes.profitChangePct,
+                      false,
+                      true,
+                    )}{" "}
+                    vs baseline
                   </>
                 ) : (
                   "Baseline N/A"
@@ -223,7 +247,12 @@ export default function PeriodComparisonPage() {
               <div className="text-[11px] text-muted-foreground">
                 {data.aggregate.changes.payoutChangePct !== null ? (
                   <>
-                    {renderDelta(data.aggregate.changes.payoutChangePct, false, true)} vs baseline
+                    {renderDelta(
+                      data.aggregate.changes.payoutChangePct,
+                      false,
+                      true,
+                    )}{" "}
+                    vs baseline
                   </>
                 ) : (
                   "Baseline N/A"
@@ -242,7 +271,12 @@ export default function PeriodComparisonPage() {
               <div className="text-[11px] text-muted-foreground">
                 {data.aggregate.changes.costChangePct !== null ? (
                   <>
-                    {renderDelta(data.aggregate.changes.costChangePct, false, true)} vs baseline
+                    {renderDelta(
+                      data.aggregate.changes.costChangePct,
+                      false,
+                      true,
+                    )}{" "}
+                    vs baseline
                   </>
                 ) : (
                   "Baseline N/A"
@@ -261,7 +295,12 @@ export default function PeriodComparisonPage() {
               <div className="text-[11px] text-muted-foreground">
                 {data.aggregate.changes.unitsChangePct !== null ? (
                   <>
-                    {renderDelta(data.aggregate.changes.unitsChangePct, false, true)} vs baseline
+                    {renderDelta(
+                      data.aggregate.changes.unitsChangePct,
+                      false,
+                      true,
+                    )}{" "}
+                    vs baseline
                   </>
                 ) : (
                   "Baseline N/A"
@@ -273,7 +312,9 @@ export default function PeriodComparisonPage() {
           {/* SKU Comparison Table */}
           <Card className="border border-border bg-card shadow-xs">
             <CardHeader className="p-4 border-b border-border">
-              <CardTitle className="text-sm font-bold">SKU Performance Comparison Breakdown</CardTitle>
+              <CardTitle className="text-sm font-bold">
+                SKU Performance Comparison Breakdown
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto custom-scrollbar">
@@ -281,25 +322,45 @@ export default function PeriodComparisonPage() {
                   <TableHeader className="bg-muted/40 font-semibold">
                     <TableRow>
                       <TableHead className="py-2.5 pl-4">SKU</TableHead>
-                      <TableHead className="py-2.5 text-right">{periodA} Units</TableHead>
-                      <TableHead className="py-2.5 text-right">{periodB} Units</TableHead>
-                      <TableHead className="py-2.5 text-right">Units Δ</TableHead>
-                      <TableHead className="py-2.5 text-right">{periodA} Profit</TableHead>
-                      <TableHead className="py-2.5 text-right">{periodB} Profit</TableHead>
-                      <TableHead className="py-2.5 text-right">Actual Profit Δ</TableHead>
-                      <TableHead className="py-2.5 pr-4 text-right">Margin Δ</TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        {periodA} Units
+                      </TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        {periodB} Units
+                      </TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        Units Δ
+                      </TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        {periodA} Profit
+                      </TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        {periodB} Profit
+                      </TableHead>
+                      <TableHead className="py-2.5 text-right">
+                        Actual Profit Δ
+                      </TableHead>
+                      <TableHead className="py-2.5 pr-4 text-right">
+                        Margin Δ
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.skuComparisons.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
+                        <TableCell
+                          colSpan={8}
+                          className="text-center py-6 text-muted-foreground"
+                        >
                           No SKU records found in both periods.
                         </TableCell>
                       </TableRow>
                     ) : (
                       data.skuComparisons.map((c: SkuPeriodComparison) => (
-                        <TableRow key={c.sku} className="hover:bg-muted/30 transition-colors">
+                        <TableRow
+                          key={c.sku}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
                           <TableCell className="py-2.5 pl-4 font-mono font-bold">
                             <Link
                               href={`/sku/${encodeURIComponent(c.sku)}`}

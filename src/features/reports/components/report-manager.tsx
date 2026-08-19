@@ -343,8 +343,8 @@ export function ReportManager() {
           onClose={() => setIsTypeDialogOpen(false)}
           fileName={pendingFile.name}
           detection={detectionResult}
-          onConfirm={(selectedType) =>
-            processSelectedReport(pendingFile, selectedType)
+          onConfirm={(selectedType, customReportName, dateRange) =>
+            processSelectedReport(pendingFile, selectedType, customReportName, dateRange)
           }
         />
       )}

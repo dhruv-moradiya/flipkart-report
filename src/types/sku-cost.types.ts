@@ -66,6 +66,7 @@ export interface PnlReportImportItem {
   skuCount: number;
   orderCount: number;
   returnCount?: number;
+  settlementCount?: number;
   summaryMetadata?: Record<string, unknown>;
   financialSummary?: {
     netSales: number;

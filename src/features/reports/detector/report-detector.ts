@@ -85,7 +85,7 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     overallSummaryMeta = extractOverallSummary(workbook.Sheets[summarySheetName]);
   }
 
-  // 2. Check for SKU-level P&L and Orders P&L sheet names
+  // 2. Check for SKU-level P&L and Orders P&L sheet names (Definite P&L signatures)
   const hasSkuPnlSheet = sheetNames.some((name) => {
     const clean = cleanName(name);
     return (
@@ -101,10 +101,56 @@ export function detectReportType(workbook: XLSX.WorkBook): ReportDetectionResult
     return (
       clean.includes("orderspnl") ||
       clean.includes("orderpnl") ||
-      clean.includes("orders") ||
       (clean.includes("order") && (clean.includes("pnl") || clean.includes("pl") || clean.includes("p&l")))
     );
   });
+
+  // 3. Check for Settlement Specific Sheets and Headers (Flipkart Seller Settlement Ledger)
+  const hasSettlementSheets = sheetNames.some((name) => {
+    const clean = cleanName(name);
+    return (
+      clean.includes("summaryofreport") ||
+      clean.includes("gstdetails") ||
+      clean.includes("mpfeerebate") ||
+      clean.includes("nonorderspf") ||
+      clean.includes("storagerecall") ||
+      clean.includes("tcsrecovery")
+    );
+  });
+
+  let hasSettlementHeaders = false;
+  for (const sheetName of sheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    if (!ws) continue;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
+    for (let r = 0; r < Math.min(100, rows.length); r++) {
+      const headerRow = (rows[r] || []).map((h) => cleanName(String(h || "")));
+      const hasBankSettlement = headerRow.some((h) => h.includes("banksettlementvalue") || h.includes("banksettlement"));
+      const hasRealizable = headerRow.some((h) => h.includes("totalrealizable") || h.includes("inputgsttcscredit") || h.includes("incometaxcredit"));
+      const hasNeftOrders = headerRow.some((h) => h.includes("neftid")) && headerRow.some((h) => h.includes("orderid") || h.includes("orderitemid"));
+      const hasSettledText = headerRow.some((h) => h.includes("settledtransactions") || h.includes("settlementvalue"));
+
+      if (hasBankSettlement || hasRealizable || hasNeftOrders || hasSettledText) {
+        hasSettlementHeaders = true;
+        break;
+      }
+    }
+    if (hasSettlementHeaders) break;
+  }
+
+  // Settlement detection only if not a SKU-level P&L workbook
+  if (!hasSkuPnlSheet && (hasSettlementSheets || hasSettlementHeaders)) {
+    return {
+      type: "settlement",
+      confidence: 0.98,
+      version: "v1",
+      sheets: sheetNames,
+      warnings,
+      errors,
+      suggestedOption: REPORT_TYPE_OPTIONS.find((o) => o.id === "settlement") || null,
+      overallSummary: overallSummaryMeta,
+    };
+  }
 
   const hasReportHelpSheet = sheetNames.some((name) => {
     const clean = cleanName(name);

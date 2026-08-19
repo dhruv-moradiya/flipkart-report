@@ -10,7 +10,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "test": "npx tsx src/features/analytics/tests/calculations.test.ts && npx tsx src/features/reports/tests/resilience.test.ts && npx tsx src/features/reports/parsers/excel/multi-row-header.test.ts && npx tsx src/features/pnl/pnl.test.ts && npx tsx src/features/reports/relations/order-journey.test.ts"
+    "test": "npx tsx src/features/reports/tests/date-range-utils.test.ts && npx tsx src/features/analytics/tests/calculations.test.ts && npx tsx src/features/reports/tests/resilience.test.ts && npx tsx src/features/reports/parsers/excel/multi-row-header.test.ts && npx tsx src/features/pnl/pnl.test.ts && npx tsx src/features/reports/relations/order-journey.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

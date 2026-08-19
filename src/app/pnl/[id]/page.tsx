@@ -13,6 +13,7 @@ import {
   Calendar,
   Loader2,
   Table as TableIcon,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,8 +57,15 @@ export default function PnlReportByIdPage({ params }: PageProps) {
   } = useExcelData();
 
   const { data: allReports = [] } = useReportImports();
+  const pnlReports = allReports.filter(
+    (r) =>
+      r.reportType === "FLIPKART_PNL" ||
+      (!r.fileName.toLowerCase().includes("return") && r.skuCount > 0),
+  );
   const [activeTab, setActiveTab] = useState<string>("overview");
-  const [selectedOrder, setSelectedOrder] = useState<OrderPnlRecord | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderPnlRecord | null>(
+    null,
+  );
 
   // Load the specific report by ID on mount or when reportId param changes
   useEffect(() => {
@@ -110,7 +118,11 @@ export default function PnlReportByIdPage({ params }: PageProps) {
       const url = new URL(window.location.href);
       if (url.searchParams.get("tab") !== tab) {
         url.searchParams.set("tab", tab);
-        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+        window.history.pushState(
+          {},
+          "",
+          url.pathname + (url.search ? url.search : ""),
+        );
       }
     }
   };
@@ -126,9 +138,12 @@ export default function PnlReportByIdPage({ params }: PageProps) {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary animate-pulse">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-          <h2 className="text-base font-bold text-foreground">Loading P&L Report from Database</h2>
+          <h2 className="text-base font-bold text-foreground">
+            Loading P&L Report from Database
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Fetching normalized SKU and Order records for Report ID: <code className="font-mono text-[11px]">{reportId}</code>
+            Fetching normalized SKU and Order records for Report ID:{" "}
+            <code className="font-mono text-[11px]">{reportId}</code>
           </p>
         </div>
       </main>
@@ -142,11 +157,19 @@ export default function PnlReportByIdPage({ params }: PageProps) {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <FileSpreadsheet className="h-6 w-6" />
           </div>
-          <h2 className="text-lg font-bold text-foreground">Report Not Found</h2>
+          <h2 className="text-lg font-bold text-foreground">
+            Report Not Found
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Could not find P&L report dataset for ID: <code className="font-mono">{reportId}</code>.
+            Could not find P&L report dataset for ID:{" "}
+            <code className="font-mono">{reportId}</code>.
           </p>
-          <Button asChild variant="default" size="sm" className="gap-2 cursor-pointer">
+          <Button
+            asChild
+            variant="default"
+            size="sm"
+            className="gap-2 cursor-pointer"
+          >
             <Link href="/">
               <ArrowLeft className="h-4 w-4" />
               Return to Uploads
@@ -163,7 +186,12 @@ export default function PnlReportByIdPage({ params }: PageProps) {
       <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-md px-4 sm:px-8 py-3">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs bg-background cursor-pointer">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs bg-background cursor-pointer"
+            >
               <Link href="/">
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Upload Portal
@@ -175,20 +203,24 @@ export default function PnlReportByIdPage({ params }: PageProps) {
                 <h1 className="text-sm font-bold tracking-tight text-foreground">
                   Flipkart SKU-level P&L + Orders P&L
                 </h1>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] font-mono px-1.5 py-0 h-4 gap-1"
+                >
                   <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                   Database Persisted
                 </Badge>
               </div>
               <p className="text-[11px] text-muted-foreground font-mono">
-                {fileName || "P&L Report"} • {pnlAnalytics.overview.totalSkus} SKUs • {pnlAnalytics.orders.totalOrderItems} Order Items
+                {fileName || "P&L Report"} • {pnlAnalytics.overview.totalSkus}{" "}
+                SKUs • {pnlAnalytics.orders.totalOrderItems} Order Items
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* Report Selector Dropdown */}
-            {allReports.length > 0 && (
+            {pnlReports.length > 1 && (
               <Select
                 value={activeReportId || reportId}
                 onValueChange={handleReportSwitch}
@@ -198,21 +230,43 @@ export default function PnlReportByIdPage({ params }: PageProps) {
                   <SelectValue placeholder="Switch Report" />
                 </SelectTrigger>
                 <SelectContent className="text-xs max-h-60">
-                  {allReports.map((r) => (
+                  {pnlReports.map((r) => (
                     <SelectItem key={r._id} value={r._id}>
                       <span className="font-semibold">{r.periodLabel}</span>{" "}
-                      <span className="text-[10px] text-muted-foreground">({r.fileName.slice(0, 18)}...)</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        ({r.fileName.slice(0, 18)}...)
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
 
-            <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono">
-              Net Earnings: ₹{pnlAnalytics.overview.totalNetEarnings.toLocaleString()}
+            {/* Link to Actual Profit Analytics */}
+            <Button
+              asChild
+              size="sm"
+              className="h-7 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+            >
+              <Link href={`/analytics/actual-profit?reportId=${reportId}`}>
+                <Sparkles className="h-3.5 w-3.5 text-emerald-200" />
+                <span>Profit Analytics</span>
+              </Link>
+            </Button>
+
+            <Badge
+              variant="outline"
+              className="text-[10px] px-2 py-0.5 font-mono"
+            >
+              Net Earnings: ₹
+              {pnlAnalytics.overview.totalNetEarnings.toLocaleString()}
             </Badge>
-            <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono">
-              Pending: ₹{pnlAnalytics.overview.totalAmountPending.toLocaleString()}
+            <Badge
+              variant="outline"
+              className="text-[10px] px-2 py-0.5 font-mono"
+            >
+              Pending: ₹
+              {pnlAnalytics.overview.totalAmountPending.toLocaleString()}
             </Badge>
           </div>
         </div>
@@ -223,9 +277,16 @@ export default function PnlReportByIdPage({ params }: PageProps) {
         {/* Uploaded Reports Status Bar */}
         <ReportManager />
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="space-y-6"
+        >
           <TabsList className="bg-muted/60 p-1 border border-border">
-            <TabsTrigger value="overview" className="gap-2 text-xs cursor-pointer">
+            <TabsTrigger
+              value="overview"
+              className="gap-2 text-xs cursor-pointer"
+            >
               <BarChart3 className="h-3.5 w-3.5" />
               Financial Overview
             </TabsTrigger>
@@ -233,7 +294,10 @@ export default function PnlReportByIdPage({ params }: PageProps) {
               <Layers className="h-3.5 w-3.5" />
               SKU Performance Table ({pnlAnalytics.overview.totalSkus})
             </TabsTrigger>
-            <TabsTrigger value="orders" className="gap-2 text-xs cursor-pointer">
+            <TabsTrigger
+              value="orders"
+              className="gap-2 text-xs cursor-pointer"
+            >
               <ShoppingBag className="h-3.5 w-3.5" />
               Orders P&L Table ({pnlAnalytics.orders.totalOrderItems})
             </TabsTrigger>
@@ -242,15 +306,21 @@ export default function PnlReportByIdPage({ params }: PageProps) {
           {/* Tab 1: Financial Overview */}
           <TabsContent value="overview" className="space-y-6">
             <PnlDashboardOverview analytics={pnlAnalytics} />
-            <PnlCharts analytics={pnlAnalytics} onSelectSku={() => handleTabChange("skus")} />
+            <PnlCharts
+              analytics={pnlAnalytics}
+              onSelectSku={() => handleTabChange("skus")}
+            />
           </TabsContent>
 
           {/* Tab 2: SKU Performance Table */}
           <TabsContent value="skus" className="space-y-4">
             <div className="space-y-1">
-              <h2 className="text-sm font-bold text-foreground">SKU Financial Performance Directory</h2>
+              <h2 className="text-sm font-bold text-foreground">
+                SKU Financial Performance Directory
+              </h2>
               <p className="text-xs text-muted-foreground">
-                Official Flipkart SKU metrics from database. Click any row to view full financial cards and connected orders.
+                Official Flipkart SKU metrics from database. Click any row to
+                view full financial cards and connected orders.
               </p>
             </div>
             <SkuPnlTable
@@ -263,9 +333,13 @@ export default function PnlReportByIdPage({ params }: PageProps) {
           {/* Tab 3: Orders P&L Table */}
           <TabsContent value="orders" className="space-y-4">
             <div className="space-y-1">
-              <h2 className="text-sm font-bold text-foreground">Orders P&L Individual Journey Table</h2>
+              <h2 className="text-sm font-bold text-foreground">
+                Orders P&L Individual Journey Table
+              </h2>
               <p className="text-xs text-muted-foreground">
-                Individual order items from database. Click any <strong>Order ID</strong> to view the complete Order Journey with connected return tracking.
+                Individual order items from database. Click any{" "}
+                <strong>Order ID</strong> to view the complete Order Journey
+                with connected return tracking.
               </p>
             </div>
             <OrdersPnlTable

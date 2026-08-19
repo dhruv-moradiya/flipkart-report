@@ -1,33 +1,30 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import {
-  FileSpreadsheet,
-  FileText,
-  Sparkles,
-  Calculator,
-  ArrowUpDown,
-  Layers,
-  ShoppingBag,
-  ArrowRight,
-  UploadCloud,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FileDropzone } from "@/components/excel/file-dropzone";
 import { HomeUploadedReports } from "@/components/reports/home-uploaded-reports";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useExcelData } from "@/context/excel-context";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  FileText,
+  Layers,
+  Sparkles,
+  UploadCloud,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 
 export default function Page() {
   const { records, pnlReport } = useExcelData();
@@ -46,40 +43,66 @@ export default function Page() {
               Flipkart Seller Financial & Profit Intelligence
             </CardTitle>
             <CardDescription className="text-muted-foreground max-w-2xl mx-auto text-xs sm:text-sm">
-              Upload your monthly Flipkart reports to store persistent financial data, configure SKU unit costs, and track actual net profit over time.
+              Upload your monthly Flipkart reports to store persistent financial
+              data, configure SKU unit costs, and track actual net profit over
+              time.
             </CardDescription>
 
             {/* Quick Navigation Action Hub */}
             <div className="flex items-center justify-center gap-2 pt-3 flex-wrap">
-              <Button asChild size="sm" className="h-8 text-xs gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button
+                asChild
+                size="sm"
+                className="h-8 text-xs gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
                 <Link href="/analytics/actual-profit">
                   <Sparkles className="h-3.5 w-3.5" />
                   Actual Profit Intelligence
                 </Link>
               </Button>
 
-              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+              >
                 <Link href="/pnl">
                   <FileSpreadsheet className="h-3.5 w-3.5" />
                   P&L Tables
                 </Link>
               </Button>
 
-              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+              >
                 <Link href="/analytics/compare">
                   <ArrowUpDown className="h-3.5 w-3.5" />
                   Month Compare
                 </Link>
               </Button>
 
-              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+              >
                 <Link href="/sku-costs">
                   <Layers className="h-3.5 w-3.5" />
                   SKU Cost Master
                 </Link>
               </Button>
 
-              <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5 cursor-pointer">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+              >
                 <Link href="/analytics/overview">
                   Multi-Route Analytics
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -128,7 +151,9 @@ export default function Page() {
           <CardFooter className="flex justify-between border-t border-border bg-muted/20 px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" />
-              <span>MongoDB Persistent Storage • Fastify Calculation Engine</span>
+              <span>
+                MongoDB Persistent Storage • Fastify Calculation Engine
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />

@@ -1,54 +1,49 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import {
-  useReportImports,
-  useReprocessReport,
-  useDeleteReport,
-} from "@/hooks/use-report-imports";
-import { PnlReportImportItem } from "@/types/sku-cost.types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardHeader,
-  CardTitle,
   CardContent,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { DeleteReportDialog } from "./delete-report-dialog";
 import {
-  FileSpreadsheet,
-  Calendar,
-  Layers,
-  ShoppingBag,
+  useDeleteReport,
+  useReportImports,
+  useReprocessReport,
+} from "@/hooks/use-report-imports";
+import { cn } from "@/lib/utils";
+import { PnlReportImportItem } from "@/types/sku-cost.types";
+import {
   ArrowRight,
-  TrendingUp,
-  CreditCard,
-  Receipt,
-  Sparkles,
-  Info,
-  RefreshCw,
-  Trash2,
+  Calendar,
   CheckCircle2,
-  ExternalLink,
-  ChevronRight,
+  FileSpreadsheet,
+  Layers,
   Maximize2,
-  Table as TableIcon,
-  Undo2,
   Package,
   PlusCircle,
+  RefreshCw,
+  ShoppingBag,
+  Sparkles,
+  Table as TableIcon,
+  Trash2,
+  TrendingUp,
+  Undo2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import React, { useState } from "react";
+import { DeleteReportDialog } from "./delete-report-dialog";
 
 export function HomeUploadedReports() {
   const { data: reports = [], isLoading } = useReportImports();
@@ -188,8 +183,8 @@ export function HomeUploadedReports() {
                     variant="outline"
                     className={
                       isReturnsReport
-                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold gap-1"
-                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold gap-1"
+                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-mono font-bold gap-1"
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-mono font-bold gap-1"
                     }
                   >
                     {isReturnsReport ? (
@@ -324,7 +319,7 @@ export function HomeUploadedReports() {
                       size="sm"
                       className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer bg-background"
                     >
-                      <Link href={`/table?reportId=${report._id}`}>
+                      <Link href={`/table/${report._id}`}>
                         <TableIcon className="h-3.5 w-3.5 text-amber-500" />
                         Open Returns
                       </Link>
@@ -349,7 +344,7 @@ export function HomeUploadedReports() {
                         className="h-7 px-2 text-[11px] gap-1 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <Link
-                          href={`/analytics/actual-profit?periodFilter=${report.reportingPeriod}`}
+                          href={`/analytics/actual-profit?reportId=${report._id}`}
                         >
                           <Sparkles className="h-3 w-3" />
                           Profit
@@ -413,7 +408,7 @@ export function HomeUploadedReports() {
 
                     <Badge
                       variant="outline"
-                      className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold gap-1"
+                      className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-mono font-bold gap-1"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Database Persisted
@@ -514,7 +509,7 @@ export function HomeUploadedReports() {
                           size="sm"
                           className="text-xs gap-1.5 cursor-pointer"
                         >
-                          <Link href={`/table?reportId=${selectedReport._id}`}>
+                          <Link href={`/table/${selectedReport._id}`}>
                             <TableIcon className="h-4 w-4 text-amber-500" />
                             Open Returns Analysis Table
                           </Link>
@@ -720,7 +715,7 @@ export function HomeUploadedReports() {
                           className="text-xs gap-1.5 cursor-pointer bg-emerald-600/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/20"
                         >
                           <Link
-                            href={`/analytics/actual-profit?periodFilter=${selectedReport.reportingPeriod}`}
+                            href={`/analytics/actual-profit?reportId=${selectedReport._id}`}
                           >
                             <Sparkles className="h-4 w-4 text-emerald-600" />
                             Actual Profit Dashboard

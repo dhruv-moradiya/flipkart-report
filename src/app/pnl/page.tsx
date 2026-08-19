@@ -12,6 +12,7 @@ import {
   Calendar,
   Loader2,
   Table as TableIcon,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,11 @@ export default function PnlPage() {
 
   const router = useRouter();
   const { data: allReports = [] } = useReportImports();
+  const pnlReports = allReports.filter(
+    (r) =>
+      r.reportType === "FLIPKART_PNL" ||
+      (!r.fileName.toLowerCase().includes("return") && r.skuCount > 0)
+  );
   const { data: availablePeriods = [] } = useAvailablePeriods();
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [selectedOrder, setSelectedOrder] = useState<OrderPnlRecord | null>(null);
@@ -181,9 +187,9 @@ export default function PnlPage() {
 
           <div className="flex items-center gap-2">
             {/* Report Selector Dropdown */}
-            {allReports.length > 0 && (
+            {pnlReports.length > 0 && (
               <Select
-                value={activeReportId || allReports[0]?._id}
+                value={activeReportId || pnlReports[0]?._id}
                 onValueChange={(newId) => router.push(`/pnl/${newId}`)}
               >
                 <SelectTrigger className="h-7 text-xs w-[170px] font-medium bg-background border-border">
@@ -191,7 +197,7 @@ export default function PnlPage() {
                   <SelectValue placeholder="Select Report" />
                 </SelectTrigger>
                 <SelectContent className="text-xs max-h-60">
-                  {allReports.map((r) => (
+                  {pnlReports.map((r) => (
                     <SelectItem key={r._id} value={r._id}>
                       <span className="font-semibold">{r.periodLabel}</span>{" "}
                       <span className="text-[10px] text-muted-foreground">({r.fileName.slice(0, 16)}...)</span>
@@ -200,6 +206,18 @@ export default function PnlPage() {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Link to Actual Profit Analytics */}
+            <Button
+              asChild
+              size="sm"
+              className="h-7 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+            >
+              <Link href={`/analytics/actual-profit?reportId=${activeReportId || pnlReports[0]?._id || ""}`}>
+                <Sparkles className="h-3.5 w-3.5 text-emerald-200" />
+                <span>Profit Analytics</span>
+              </Link>
+            </Button>
 
             <Badge variant="outline" className="text-[10px] px-2 py-0.5 font-mono">
               Net Earnings: ₹{pnlAnalytics.overview.totalNetEarnings.toLocaleString()}

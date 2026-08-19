@@ -15,11 +15,18 @@ export function useActualProfitOverview(
   financialBasis: FinancialBasis = "netEarnings",
   unitBasis: UnitBasis = "netUnits"
 ) {
+  const isObjectId = Boolean(periodFilter && periodFilter.match(/^[0-9a-fA-F]{24}$/));
+
   return useQuery<BusinessProfitOverviewData>({
     queryKey: ["actual-profit-overview", periodFilter, financialBasis, unitBasis],
     queryFn: async () => {
       const res = await apiClient.get("/api/analytics/actual-profit", {
-        params: { periodFilter, financialBasis, unitBasis },
+        params: {
+          periodFilter,
+          financialBasis,
+          unitBasis,
+          ...(isObjectId ? { reportId: periodFilter } : {}),
+        },
       });
       return res.data.data;
     },

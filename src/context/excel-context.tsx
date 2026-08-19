@@ -153,14 +153,28 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
+      const pathname = url.pathname;
       const orderIdParam = url.searchParams.get("orderId");
       if (orderIdParam) {
         setSelectedJourneyOrderId(orderIdParam);
       }
+
+      // If already on a specific /pnl/[id] or /table/[id] page, that page handles its own loading by params
+      if (pathname.startsWith("/pnl/") || pathname.startsWith("/table/")) {
+        setIsDbLoading(false);
+        return;
+      }
+
       const periodParam = url.searchParams.get("period");
       const reportIdParam = url.searchParams.get("reportId");
-      loadReportFromBackend(reportIdParam || periodParam || undefined);
-      loadReturnsFromBackend(reportIdParam || periodParam || undefined);
+
+      if (reportIdParam || periodParam) {
+        loadReportFromBackend(reportIdParam || periodParam || undefined);
+        loadReturnsFromBackend(reportIdParam || periodParam || undefined);
+      } else {
+        loadReportFromBackend();
+        loadReturnsFromBackend();
+      }
     } else {
       loadReportFromBackend();
       loadReturnsFromBackend();
@@ -233,14 +247,18 @@ export function ExcelProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const uploadedReportsState: UploadedReportsState = useMemo(() => {
-    const pnlActive = Boolean(pnlReport);
-    const returnsActive = records.length > 0;
+    const pnlActive = Boolean(
+      pnlReport &&
+        ((pnlReport.skuLevel && pnlReport.skuLevel.length > 0) ||
+          (pnlReport.orders && pnlReport.orders.length > 0))
+    );
+    const returnsActive = Boolean(records && records.length > 0);
     return {
       pnlActive,
       returnsActive,
       bothActive: pnlActive && returnsActive,
-      pnlReportFileName: pnlReport?.fileName || pnlFileName || undefined,
-      returnsFileName: returnsFileName || undefined,
+      pnlReportFileName: pnlActive ? (pnlReport?.fileName || pnlFileName || undefined) : undefined,
+      returnsFileName: returnsActive ? (returnsFileName || undefined) : undefined,
     };
   }, [pnlReport, records, pnlFileName, returnsFileName]);
 

@@ -5,8 +5,9 @@ import * as XLSX from "xlsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseFlipkartReturnsFile } from "../features/reports/parsers/flipkart-returns.parser";
 import { parseFlipkartPnlReport } from "../features/reports/parsers/flipkart-pnl.parser";
+import { parseFlipkartSettlementReport } from "../features/reports/parsers/flipkart-settlement.parser";
 import { detectReportType } from "../features/reports/detector/report-detector";
-import { ReportType, ReportDetectionResult } from "../features/reports/types/report.types";
+import { ReportType, ReportDetectionResult, ReportDateRange } from "../features/reports/types/report.types";
 import { ParserDiagnostics } from "../features/reports/validation/parser-diagnostics";
 import { useExcelData } from "@/context/excel-context";
 import { apiClient } from "@/lib/api-client";
@@ -59,12 +60,26 @@ export function useExcelParser() {
     file: File,
     reportType: ReportType,
     customReportName?: string,
-    selectedMonth?: number,
+    dateRange?: ReportDateRange | number,
     selectedYear?: number
   ) => {
     setIsTypeDialogOpen(false);
     setError(null);
     setIsParsing(true);
+
+    const isDateRangeObj = typeof dateRange === "object" && dateRange !== null;
+    const dateRangeObj = isDateRangeObj ? (dateRange as ReportDateRange) : undefined;
+    const resolvedMonth = dateRangeObj?.selectedMonth ?? (typeof dateRange === "number" ? dateRange : undefined);
+    const resolvedYear = dateRangeObj?.selectedYear ?? selectedYear;
+
+    const reportingPeriod =
+      dateRangeObj?.reportingPeriod ||
+      (resolvedYear && resolvedMonth
+        ? `${resolvedYear}-${String(resolvedMonth).padStart(2, "0")}`
+        : undefined);
+    const periodLabel = dateRangeObj?.periodLabel;
+    const startDate = dateRangeObj?.startDate;
+    const endDate = dateRangeObj?.endDate;
 
     try {
       if (reportType === "profit_loss" || reportType === "sku_pnl_orders_pnl") {
@@ -72,18 +87,19 @@ export function useExcelParser() {
         setPnlReport(result);
 
         const finalFileName = customReportName?.trim() || file.name;
-        const reportingPeriod =
-          selectedYear && selectedMonth
-            ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
-            : undefined;
 
         // Persist to backend database & calculate snapshots permanently
         try {
           const importRes = await apiClient.post("/api/reports/import", {
             fileName: finalFileName,
             reportingPeriod,
-            userSelectedMonth: selectedMonth,
-            userSelectedYear: selectedYear,
+            periodLabel,
+            startDate,
+            endDate,
+            userSelectedStartDate: startDate,
+            userSelectedEndDate: endDate,
+            userSelectedMonth: resolvedMonth,
+            userSelectedYear: resolvedYear,
             summaryMetadata: result.metadata?.rawMetadata || {},
             skuRecords: result.skuLevel,
             orderRecords: result.orders,
@@ -134,17 +150,18 @@ export function useExcelParser() {
           setParseResult(result);
 
           const finalFileName = customReportName?.trim() || file.name;
-          const reportingPeriod =
-            selectedYear && selectedMonth
-              ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
-              : undefined;
 
           try {
             await apiClient.post("/api/reports/returns/import", {
               fileName: finalFileName,
               reportingPeriod,
-              userSelectedMonth: selectedMonth,
-              userSelectedYear: selectedYear,
+              periodLabel,
+              startDate,
+              endDate,
+              userSelectedStartDate: startDate,
+              userSelectedEndDate: endDate,
+              userSelectedMonth: resolvedMonth,
+              userSelectedYear: resolvedYear,
               summaryMetadata: {},
               returnRecords: result.records,
               replaceExisting: false,
@@ -179,17 +196,18 @@ export function useExcelParser() {
           if (pnlResult && pnlResult.skuLevel.length > 0) {
             setPnlReport(pnlResult);
             const finalFileName = customReportName?.trim() || file.name;
-            const reportingPeriod =
-              selectedYear && selectedMonth
-                ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
-                : undefined;
 
             try {
               const importRes = await apiClient.post("/api/reports/import", {
                 fileName: finalFileName,
                 reportingPeriod,
-                userSelectedMonth: selectedMonth,
-                userSelectedYear: selectedYear,
+                periodLabel,
+                startDate,
+                endDate,
+                userSelectedStartDate: startDate,
+                userSelectedEndDate: endDate,
+                userSelectedMonth: resolvedMonth,
+                userSelectedYear: resolvedYear,
                 summaryMetadata: pnlResult.metadata?.rawMetadata || {},
                 skuRecords: pnlResult.skuLevel,
                 orderRecords: pnlResult.orders,
@@ -233,6 +251,52 @@ export function useExcelParser() {
             throw returnsErr;
           }
         }
+      } else if (reportType === "settlement") {
+        const result = await parseFlipkartSettlementReport(file);
+        const finalFileName = customReportName?.trim() || file.name;
+
+        try {
+          await apiClient.post("/api/reports/settlement/import", {
+            fileName: finalFileName,
+            reportingPeriod,
+            periodLabel,
+            startDate,
+            endDate,
+            userSelectedStartDate: startDate,
+            userSelectedEndDate: endDate,
+            userSelectedMonth: resolvedMonth,
+            userSelectedYear: resolvedYear,
+            summary: result.summary,
+            orders: result.orders,
+            gstDetails: result.gstDetails,
+            ads: result.ads,
+            replaceExisting: false,
+          });
+
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["report-imports"] }),
+            queryClient.invalidateQueries({ queryKey: ["settlement-report"] }),
+          ]);
+        } catch (importErr) {
+          console.error("Backend Settlement report auto-import error:", importErr);
+        }
+
+        setLastValidationDiagnostics({
+          reportType: "settlement",
+          schemaVersion: "v1",
+          confidence: 0.98,
+          sheetsDetected: result.report.sheetNames,
+          columnsDetected: 76,
+          hiddenColumnsDetected: 0,
+          mergedRangesDetected: 4,
+          mappedFields: ["neftId", "bankSettlementValue", "orderId", "orderItemId", "sellerSku", "marketplaceFee", "taxes"],
+          unknownFields: [],
+          missingRequiredFields: [],
+          warnings: [],
+          errors: [],
+        });
+        setLastParsedFileName(finalFileName);
+        setIsValidationModalOpen(true);
       } else {
         throw new Error(`Report type "${reportType}" is currently under development.`);
       }

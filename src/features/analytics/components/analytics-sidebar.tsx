@@ -153,6 +153,12 @@ export const ANALYTICS_NAV_SECTIONS: NavSection[] = [
         description: "Raw returns records table",
         requiresReturns: true,
       },
+      {
+        title: "Settled Transactions",
+        href: "/settlements",
+        icon: CreditCard,
+        description: "Reconciled Flipkart bank settlement ledger",
+      },
     ],
   },
 ];
