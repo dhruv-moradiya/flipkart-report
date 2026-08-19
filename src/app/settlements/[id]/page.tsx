@@ -1,19 +1,30 @@
 "use client";
 
-import React, { use, useState, useMemo } from "react";
+import React, { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  ColumnDef,
+  flexRender,
+  SortingState,
+  PaginationState,
+} from "@tanstack/react-table";
 import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   FileSpreadsheet,
-  Filter,
   IndianRupee,
   Receipt,
-  RotateCcw,
   Search,
   ShieldCheck,
   ShoppingBag,
@@ -21,20 +32,18 @@ import {
   CreditCard,
   Layers,
   Sparkles,
-  Table as TableIcon,
   HelpCircle,
-  Truck,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Home,
-  Clock,
   Loader2,
-  ExternalLink,
   Copy,
   Check,
   Boxes,
-  Tag,
-  AlertCircle,
+  RotateCcw,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,9 +64,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useReportImports } from "@/hooks/use-report-imports";
 import { useSettlementReportData } from "@/hooks/use-settlement-reports";
-import { SettlementOrderRecord } from "@/features/reports/types/report.types";
+import {
+  SettlementOrderRecord,
+  SettlementGstRecord,
+} from "@/features/reports/types/report.types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -88,8 +101,34 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
   const [channelFilter, setChannelFilter] = useState<string>("ALL");
   const [neftFilter, setNeftFilter] = useState<string>("ALL");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("ALL");
-  const [sortBy, setSortBy] = useState<string>("settlement_desc");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // TanStack Sorting & Pagination for Orders Table
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "bankSettlementValue", desc: true },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  });
+
+  // TanStack Sorting & Pagination for SKU Table
+  const [skuSorting, setSkuSorting] = useState<SortingState>([
+    { id: "bankSettlement", desc: true },
+  ]);
+  const [skuPagination, setSkuPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  });
+
+  // TanStack Sorting & Pagination for GST Table
+  const [gstSorting, setGstSorting] = useState<SortingState>([
+    { id: "feeAmount", desc: true },
+  ]);
+  const [gstPagination, setGstPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  });
 
   const copyToClipboard = (text: string) => {
     if (!text) return;
@@ -124,11 +163,19 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
 
   // Extract unique NEFT IDs for batch filter
   const uniqueNeftBatches = useMemo(() => {
-    const map = new Map<string, { neftId: string; totalAmount: number; count: number; date?: string | Date | null }>();
+    const map = new Map<
+      string,
+      { neftId: string; totalAmount: number; count: number; date?: string | Date | null }
+    >();
     orders.forEach((o) => {
       if (!o.neftId) return;
       if (!map.has(o.neftId)) {
-        map.set(o.neftId, { neftId: o.neftId, totalAmount: 0, count: 0, date: o.paymentDate });
+        map.set(o.neftId, {
+          neftId: o.neftId,
+          totalAmount: 0,
+          count: 0,
+          date: o.paymentDate,
+        });
       }
       const b = map.get(o.neftId)!;
       b.totalAmount += o.bankSettlementValue;
@@ -137,75 +184,104 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
     return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [orders]);
 
-  // Filtered and sorted orders
+  // Filtered orders list based on filters and search
   const filteredOrders = useMemo(() => {
-    return orders
-      .filter((o) => {
-        // Status filter
-        if (statusFilter === "DELIVERED") {
-          const isReturn =
-            (o.returnType && o.returnType !== "NA" && o.returnType !== "") ||
-            (o.itemReturnStatus && o.itemReturnStatus.toLowerCase() === "returned") ||
-            o.refund < 0;
-          if (isReturn) return false;
-        }
-        if (statusFilter === "CUSTOMER_RETURN") {
-          const isCustomerReturn =
-            o.returnType?.toLowerCase().includes("customer") ||
-            (o.returnType?.toUpperCase() === "RVP");
-          if (!isCustomerReturn) return false;
-        }
-        if (statusFilter === "LOGISTICS_RETURN") {
-          const isLogisticsReturn =
-            o.returnType?.toLowerCase().includes("logistics") ||
-            (o.returnType?.toUpperCase() === "RTO");
-          if (!isLogisticsReturn) return false;
-        }
-        if (statusFilter === "REPLACEMENT") {
-          const isReplacement =
-            o.additionalInformation?.toUpperCase().includes("REPLACEMENT");
-          if (!isReplacement) return false;
-        }
-        if (statusFilter === "SPF") {
-          if (!o.protectionFund || o.protectionFund <= 0) return false;
-        }
+    return orders.filter((o) => {
+      // Status filter
+      if (statusFilter === "DELIVERED") {
+        const isReturn =
+          (o.returnType && o.returnType !== "NA" && o.returnType !== "") ||
+          (o.itemReturnStatus && o.itemReturnStatus.toLowerCase() === "returned") ||
+          o.refund < 0;
+        if (isReturn) return false;
+      }
+      if (statusFilter === "CUSTOMER_RETURN") {
+        const isCustomerReturn =
+          o.returnType?.toLowerCase().includes("customer") ||
+          o.returnType?.toUpperCase() === "RVP";
+        if (!isCustomerReturn) return false;
+      }
+      if (statusFilter === "LOGISTICS_RETURN") {
+        const isLogisticsReturn =
+          o.returnType?.toLowerCase().includes("logistics") ||
+          o.returnType?.toUpperCase() === "RTO";
+        if (!isLogisticsReturn) return false;
+      }
+      if (statusFilter === "REPLACEMENT") {
+        const isReplacement =
+          o.additionalInformation?.toUpperCase().includes("REPLACEMENT");
+        if (!isReplacement) return false;
+      }
+      if (statusFilter === "SPF") {
+        if (!o.protectionFund || o.protectionFund <= 0) return false;
+      }
 
-        // Channel filter
-        if (channelFilter === "SHOPSY" && (!o.shopsyOrder || o.shopsyOrder.toLowerCase() === "no")) return false;
-        if (channelFilter === "FLIPKART" && o.shopsyOrder && o.shopsyOrder.toLowerCase() === "yes") return false;
+      // Channel filter
+      if (
+        channelFilter === "SHOPSY" &&
+        (!o.shopsyOrder || o.shopsyOrder.toLowerCase() === "no")
+      )
+        return false;
+      if (
+        channelFilter === "FLIPKART" &&
+        o.shopsyOrder &&
+        o.shopsyOrder.toLowerCase() === "yes"
+      )
+        return false;
 
-        // NEFT Batch filter
-        if (neftFilter !== "ALL" && o.neftId !== neftFilter) return false;
+      // NEFT Batch filter
+      if (neftFilter !== "ALL" && o.neftId !== neftFilter) return false;
 
-        // Payment Type filter
-        if (paymentTypeFilter !== "ALL" && o.neftType?.toUpperCase() !== paymentTypeFilter) return false;
+      // Payment Type filter
+      if (
+        paymentTypeFilter !== "ALL" &&
+        o.neftType?.toUpperCase() !== paymentTypeFilter
+      )
+        return false;
 
-        // Search Query
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchSku = o.sellerSku.toLowerCase().includes(q);
-          const matchOrder = o.orderId.toLowerCase().includes(q);
-          const matchItem = o.orderItemId.toLowerCase().includes(q);
-          const matchNeft = o.neftId ? o.neftId.toLowerCase().includes(q) : false;
-          const matchSubCat = o.productSubCategory ? o.productSubCategory.toLowerCase().includes(q) : false;
-          const matchInvoice = o.invoiceId ? o.invoiceId.toLowerCase().includes(q) : false;
-          return matchSku || matchOrder || matchItem || matchNeft || matchSubCat || matchInvoice;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "settlement_desc") return b.bankSettlementValue - a.bankSettlementValue;
-        if (sortBy === "settlement_asc") return a.bankSettlementValue - b.bankSettlementValue;
-        if (sortBy === "sale_desc") return b.saleAmount - a.saleAmount;
-        if (sortBy === "sku_asc") return a.sellerSku.localeCompare(b.sellerSku);
-        if (sortBy === "date_desc") {
-          const dA = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
-          const dB = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
-          return dB - dA;
-        }
-        return 0;
-      });
-  }, [orders, statusFilter, channelFilter, neftFilter, paymentTypeFilter, searchQuery, sortBy]);
+      // Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchSku = o.sellerSku.toLowerCase().includes(q);
+        const matchOrder = o.orderId.toLowerCase().includes(q);
+        const matchItem = o.orderItemId.toLowerCase().includes(q);
+        const matchNeft = o.neftId ? o.neftId.toLowerCase().includes(q) : false;
+        const matchSubCat = o.productSubCategory
+          ? o.productSubCategory.toLowerCase().includes(q)
+          : false;
+        const matchInvoice = o.invoiceId
+          ? o.invoiceId.toLowerCase().includes(q)
+          : false;
+        return (
+          matchSku ||
+          matchOrder ||
+          matchItem ||
+          matchNeft ||
+          matchSubCat ||
+          matchInvoice
+        );
+      }
+      return true;
+    });
+  }, [
+    orders,
+    statusFilter,
+    channelFilter,
+    neftFilter,
+    paymentTypeFilter,
+    searchQuery,
+  ]);
+
+  // Reset pageIndex to 0 when filters change
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [
+    statusFilter,
+    channelFilter,
+    neftFilter,
+    paymentTypeFilter,
+    searchQuery,
+  ]);
 
   // Aggregated SKU Performance
   const skuAggregates = useMemo(() => {
@@ -258,17 +334,887 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
       item.bankSettlement += o.bankSettlementValue;
       item.inputGstTcs += o.inputGstTcsCredits;
       item.tds += o.incomeTaxCredits;
-      item.realizableAmount += o.bankSettlementValue + o.inputGstTcsCredits + o.incomeTaxCredits;
+      item.realizableAmount +=
+        o.bankSettlementValue + o.inputGstTcsCredits + o.incomeTaxCredits;
     }
 
-    return Array.from(map.values()).sort((a, b) => b.bankSettlement - a.bankSettlement);
+    return Array.from(map.values());
   }, [orders]);
+
+  // ==========================================
+  // TanStack Column Definitions: Settled Orders
+  // ==========================================
+  const orderColumns = useMemo<ColumnDef<SettlementOrderRecord>[]>(
+    () => [
+      {
+        id: "paymentDate",
+        accessorKey: "paymentDate",
+        header: ({ column }) => (
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Payment & NEFT</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-primary" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-primary" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </button>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="space-y-0.5 pl-1">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-foreground block">
+                  {o.paymentDate
+                    ? new Date(o.paymentDate).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </span>
+                {o.neftType && (
+                  <Badge
+                    variant="outline"
+                    className={`text-[9px] px-1 py-0 h-3.5 uppercase ${
+                      o.neftType.toLowerCase() === "prepaid"
+                        ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                        : "bg-purple-500/10 text-purple-600 border-purple-500/30"
+                    }`}
+                  >
+                    {o.neftType}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span
+                  className="text-[10px] text-muted-foreground block truncate max-w-[120px]"
+                  title={o.neftId}
+                >
+                  {o.neftId || "NEFT Pending"}
+                </span>
+                {o.neftId && (
+                  <button
+                    onClick={() => copyToClipboard(o.neftId!)}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Copy NEFT ID"
+                  >
+                    {copiedId === o.neftId ? (
+                      <Check className="h-2.5 w-2.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-2.5 w-2.5" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "orderId",
+        accessorKey: "orderId",
+        header: ({ column }) => (
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Order ID & Invoice</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-primary" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-primary" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </button>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1">
+                <span
+                  className="font-medium text-foreground block truncate max-w-[160px]"
+                  title={o.orderId}
+                >
+                  {o.orderId}
+                </span>
+                <button
+                  onClick={() => copyToClipboard(o.orderId)}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  title="Copy Order ID"
+                >
+                  {copiedId === o.orderId ? (
+                    <Check className="h-2.5 w-2.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-2.5 w-2.5" />
+                  )}
+                </button>
+              </div>
+              {o.invoiceId && o.invoiceId !== "NA" && (
+                <span
+                  className="text-[10px] text-muted-foreground block truncate max-w-[180px]"
+                  title={o.invoiceId}
+                >
+                  Inv: {o.invoiceId}
+                </span>
+              )}
+              {o.orderDate && (
+                <span className="text-[9px] text-muted-foreground block">
+                  Ord:{" "}
+                  {new Date(o.orderDate).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                  })}
+                  {o.dispatchDate
+                    ? ` • Disp: ${new Date(o.dispatchDate).toLocaleDateString(
+                        "en-IN",
+                        { day: "2-digit", month: "short" }
+                      )}`
+                    : ""}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "sellerSku",
+        accessorKey: "sellerSku",
+        header: ({ column }) => (
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Seller SKU</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-primary" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-primary" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </button>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          const isReplacement =
+            o.additionalInformation?.toUpperCase().includes("REPLACEMENT");
+          return (
+            <div className="font-bold text-foreground">
+              <span className="truncate block max-w-[160px]" title={o.sellerSku}>
+                {o.sellerSku}
+              </span>
+              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                {o.productSubCategory && o.productSubCategory !== "NA" && (
+                  <span className="text-[9px] text-muted-foreground font-normal lowercase">
+                    {o.productSubCategory.replace(/_/g, " ")}
+                  </span>
+                )}
+                {o.shopsyOrder?.toLowerCase() === "yes" && (
+                  <Badge
+                    variant="outline"
+                    className="text-[8px] px-1 py-0 h-3 bg-violet-500/10 text-violet-600 border-violet-500/30"
+                  >
+                    Shopsy
+                  </Badge>
+                )}
+                {isReplacement && (
+                  <Badge
+                    variant="outline"
+                    className="text-[8px] px-1 py-0 h-3 bg-blue-500/10 text-blue-600 border-blue-500/30"
+                  >
+                    Repl.
+                  </Badge>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "saleAmount",
+        accessorKey: "saleAmount",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Sale Amount</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="text-right font-semibold text-foreground">
+              ₹{o.saleAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              {o.totalOfferAmount > 0 && (
+                <span className="text-[9px] text-muted-foreground block font-normal">
+                  Offer: -₹{o.totalOfferAmount}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "marketplaceFee",
+        accessorKey: "marketplaceFee",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>MP Fees</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="text-right font-medium text-rose-600 dark:text-rose-400">
+              ₹
+              {o.marketplaceFee.toLocaleString("en-IN", {
+                minimumFractionDigits: 2,
+              })}
+              {o.reverseShippingFee < 0 && (
+                <span className="text-[9px] text-rose-500 block font-normal">
+                  Rev: ₹{o.reverseShippingFee}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "taxes",
+        accessorKey: "taxes",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Taxes</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right text-muted-foreground">
+            ₹
+            {row.original.taxes.toLocaleString("en-IN", {
+              minimumFractionDigits: 2,
+            })}
+          </div>
+        ),
+      },
+      {
+        id: "protectionFund",
+        accessorKey: "protectionFund",
+        header: () => <div className="text-right font-semibold">SPF / Refund</div>,
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="text-right">
+              {o.protectionFund > 0 ? (
+                <span className="text-emerald-600 font-semibold">
+                  +₹{o.protectionFund}
+                </span>
+              ) : o.refund < 0 ? (
+                <span className="text-rose-600 font-semibold">₹{o.refund}</span>
+              ) : (
+                <span className="text-muted-foreground">₹0</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "bankSettlementValue",
+        accessorKey: "bankSettlementValue",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Bank Settlement</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="text-right">
+              <Badge
+                variant="outline"
+                className={`text-[11px] font-mono font-bold px-2 py-0.5 ${
+                  o.bankSettlementValue > 0
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                    : o.bankSettlementValue < 0
+                    ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}
+              >
+                ₹
+                {o.bankSettlementValue.toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                })}
+              </Badge>
+              {(o.inputGstTcsCredits > 0 || o.incomeTaxCredits > 0) && (
+                <span className="text-[9px] text-blue-600 dark:text-blue-400 block font-normal mt-0.5">
+                  +₹{(o.inputGstTcsCredits + o.incomeTaxCredits).toFixed(1)} cr
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "deadWeight",
+        accessorKey: "deadWeight",
+        header: () => <div className="text-center font-semibold">Weight & Zone</div>,
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="text-center text-[10px] text-muted-foreground">
+              {o.deadWeight && o.deadWeight > 0 ? (
+                <div>
+                  <span>{o.deadWeight} kg</span>
+                  {o.shippingZone &&
+                    o.shippingZone !== "NA" &&
+                    ` • ${o.shippingZone}`}
+                </div>
+              ) : o.shippingZone && o.shippingZone !== "NA" ? (
+                <span>{o.shippingZone}</span>
+              ) : (
+                <span>—</span>
+              )}
+              {o.dimensions && o.dimensions !== "NA" && (
+                <span
+                  className="text-[9px] block text-muted-foreground truncate max-w-[120px]"
+                  title={o.dimensions}
+                >
+                  {o.dimensions}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "returnType",
+        accessorKey: "returnType",
+        header: () => <div className="text-center pr-2 font-semibold">Return Status</div>,
+        cell: ({ row }) => {
+          const o = row.original;
+          const isCustomerReturn =
+            o.returnType?.toLowerCase().includes("customer") ||
+            o.returnType?.toUpperCase() === "RVP";
+          const isLogisticsReturn =
+            o.returnType?.toLowerCase().includes("logistics") ||
+            o.returnType?.toUpperCase() === "RTO";
+
+          return (
+            <div className="text-center pr-2">
+              {isCustomerReturn ? (
+                <div className="space-y-0.5">
+                  <Badge
+                    variant="outline"
+                    className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] font-mono px-1.5 py-0"
+                  >
+                    CUSTOMER RETURN
+                  </Badge>
+                  {o.itemReturnStatus && o.itemReturnStatus !== "NA" && (
+                    <span className="text-[9px] text-muted-foreground block">
+                      {o.itemReturnStatus}
+                    </span>
+                  )}
+                </div>
+              ) : isLogisticsReturn ? (
+                <div className="space-y-0.5">
+                  <Badge
+                    variant="outline"
+                    className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 text-[9px] font-mono px-1.5 py-0"
+                  >
+                    LOGISTICS RETURN
+                  </Badge>
+                  {o.itemReturnStatus && o.itemReturnStatus !== "NA" && (
+                    <span className="text-[9px] text-muted-foreground block">
+                      {o.itemReturnStatus}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[9px] font-mono px-1.5 py-0"
+                >
+                  DELIVERED
+                </Badge>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [copiedId]
+  );
+
+  // TanStack Orders Table Instance
+  const table = useReactTable({
+    data: filteredOrders,
+    columns: orderColumns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  // ==========================================
+  // TanStack Column Definitions: SKU Aggregates
+  // ==========================================
+  const skuColumns = useMemo<ColumnDef<(typeof skuAggregates)[0]>[]>(
+    () => [
+      {
+        id: "sku",
+        accessorKey: "sku",
+        header: ({ column }) => (
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold pl-2"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Seller SKU</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-primary" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="h-3 w-3 text-primary" />
+            ) : (
+              <ArrowUpDown className="h-3 w-3 opacity-40" />
+            )}
+          </button>
+        ),
+        cell: ({ row }) => (
+          <div className="pl-2 font-bold text-foreground">
+            {row.original.sku}
+            {row.original.subCategory && row.original.subCategory !== "NA" && (
+              <span className="text-[10px] text-muted-foreground font-normal block lowercase">
+                {row.original.subCategory.replace(/_/g, " ")}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "ordersCount",
+        accessorKey: "ordersCount",
+        header: ({ column }) => (
+          <div className="text-center">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Orders / Qty</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-center text-muted-foreground">
+            {row.original.ordersCount} ({row.original.units} units)
+          </div>
+        ),
+      },
+      {
+        id: "saleAmount",
+        accessorKey: "saleAmount",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Gross Sales</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-semibold text-foreground">
+            ₹{row.original.saleAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+      {
+        id: "marketplaceFees",
+        accessorKey: "marketplaceFees",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>MP Fees</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-medium text-rose-600 dark:text-rose-400">
+            ₹{row.original.marketplaceFees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+      {
+        id: "taxes",
+        accessorKey: "taxes",
+        header: () => <div className="text-right font-semibold">Taxes</div>,
+        cell: ({ row }) => (
+          <div className="text-right text-muted-foreground">
+            ₹{row.original.taxes.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+      {
+        id: "bankSettlement",
+        accessorKey: "bankSettlement",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Bank Settlement</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-bold text-emerald-600 dark:text-emerald-400">
+            ₹{row.original.bankSettlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+      {
+        id: "realizableAmount",
+        accessorKey: "realizableAmount",
+        header: ({ column }) => (
+          <div className="text-right pr-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Realizable Amount</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right pr-2 font-bold text-emerald-700 dark:text-emerald-300">
+            ₹{row.original.realizableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  // TanStack SKU Table Instance
+  const skuTable = useReactTable({
+    data: skuAggregates,
+    columns: skuColumns,
+    state: {
+      sorting: skuSorting,
+      pagination: skuPagination,
+    },
+    onSortingChange: setSkuSorting,
+    onPaginationChange: setSkuPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  // ==========================================
+  // TanStack Column Definitions: GST Fee Details
+  // ==========================================
+  const gstColumns = useMemo<ColumnDef<SettlementGstRecord>[]>(
+    () => [
+      {
+        id: "feeName",
+        accessorKey: "feeName",
+        header: () => <span className="pl-2 font-semibold">Fee Name</span>,
+        cell: ({ row }) => (
+          <div className="pl-2 font-bold text-foreground">
+            {row.original.feeName}
+          </div>
+        ),
+      },
+      {
+        id: "serviceType",
+        accessorKey: "serviceType",
+        header: () => <span className="font-semibold">Service Type</span>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.serviceType || "Order Item"}
+          </span>
+        ),
+      },
+      {
+        id: "referenceId",
+        accessorKey: "referenceId",
+        header: () => <span className="font-semibold">Reference / Item ID</span>,
+        cell: ({ row }) => (
+          <span
+            className="text-muted-foreground truncate max-w-[160px] block"
+            title={row.original.referenceId}
+          >
+            {row.original.referenceId || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "feeAmount",
+        accessorKey: "feeAmount",
+        header: ({ column }) => (
+          <div className="text-right">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Fee Amount</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right font-semibold text-rose-600 dark:text-rose-400">
+            ₹{row.original.feeAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          </div>
+        ),
+      },
+      {
+        id: "cgstAmount",
+        accessorKey: "cgstAmount",
+        header: () => <div className="text-right font-semibold">CGST</div>,
+        cell: ({ row }) => (
+          <div className="text-right text-muted-foreground">
+            ₹{row.original.cgstAmount.toFixed(2)}
+          </div>
+        ),
+      },
+      {
+        id: "sgstAmount",
+        accessorKey: "sgstAmount",
+        header: () => <div className="text-right font-semibold">SGST</div>,
+        cell: ({ row }) => (
+          <div className="text-right text-muted-foreground">
+            ₹{row.original.sgstAmount.toFixed(2)}
+          </div>
+        ),
+      },
+      {
+        id: "igstAmount",
+        accessorKey: "igstAmount",
+        header: () => <div className="text-right font-semibold">IGST</div>,
+        cell: ({ row }) => (
+          <div className="text-right text-muted-foreground">
+            ₹{row.original.igstAmount.toFixed(2)}
+          </div>
+        ),
+      },
+      {
+        id: "totalGst",
+        accessorKey: "totalGst",
+        header: ({ column }) => (
+          <div className="text-right pr-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 hover:text-foreground cursor-pointer font-semibold"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <span>Total GST</span>
+              {column.getIsSorted() === "asc" ? (
+                <ArrowUp className="h-3 w-3 text-primary" />
+              ) : column.getIsSorted() === "desc" ? (
+                <ArrowDown className="h-3 w-3 text-primary" />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" />
+              )}
+            </button>
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right pr-2 font-bold text-foreground">
+            ₹{row.original.totalGst.toFixed(2)}
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  // TanStack GST Table Instance
+  const gstTable = useReactTable({
+    data: gstDetails,
+    columns: gstColumns,
+    state: {
+      sorting: gstSorting,
+      pagination: gstPagination,
+    },
+    onSortingChange: setGstSorting,
+    onPaginationChange: setGstPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  // Export Settled Transactions to Excel
+  const handleExportOrders = () => {
+    if (filteredOrders.length === 0) return;
+    const exportRows = filteredOrders.map((o) => ({
+      "Payment Date": o.paymentDate
+        ? new Date(o.paymentDate).toLocaleDateString("en-IN")
+        : "",
+      "NEFT ID": o.neftId || "",
+      "Neft Type": o.neftType || "",
+      "Order ID": o.orderId,
+      "Order Item ID": o.orderItemId,
+      "Invoice ID": o.invoiceId || "",
+      "Order Date": o.orderDate
+        ? new Date(o.orderDate).toLocaleDateString("en-IN")
+        : "",
+      "Dispatch Date": o.dispatchDate
+        ? new Date(o.dispatchDate).toLocaleDateString("en-IN")
+        : "",
+      "Seller SKU": o.sellerSku,
+      Quantity: o.quantity || 1,
+      "Product Sub Category": o.productSubCategory || "",
+      "Sale Amount (₹)": o.saleAmount,
+      "Total Offer (₹)": o.totalOfferAmount,
+      "Marketplace Fee (₹)": o.marketplaceFee,
+      "Reverse Shipping (₹)": o.reverseShippingFee,
+      "Taxes (₹)": o.taxes,
+      "Protection Fund (₹)": o.protectionFund,
+      "Refund (₹)": o.refund,
+      "Bank Settlement Value (₹)": o.bankSettlementValue,
+      "Input GST + TCS Credits (₹)": o.inputGstTcsCredits,
+      "TDS Credits (₹)": o.incomeTaxCredits,
+      "Dead Weight (kg)": o.deadWeight || "",
+      Dimensions: o.dimensions || "",
+      "Shipping Zone": o.shippingZone || "",
+      "Return Type": o.returnType || "",
+      "Item Return Status": o.itemReturnStatus || "",
+      "Shopsy Order": o.shopsyOrder || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Settled Orders");
+    XLSX.writeFile(
+      wb,
+      `Flipkart_Settled_Orders_${reportMeta?.periodLabel || "Export"}.xlsx`
+    );
+  };
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm font-medium">Loading Settled Transactions from database...</span>
+        <span className="text-sm font-medium">
+          Loading Settled Transactions from database...
+        </span>
       </div>
     );
   }
@@ -279,7 +1225,9 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
           <HelpCircle className="h-6 w-6" />
         </div>
-        <h3 className="text-base font-bold text-foreground">Settlement Report Not Found</h3>
+        <h3 className="text-base font-bold text-foreground">
+          Settlement Report Not Found
+        </h3>
         <p className="text-xs text-muted-foreground">
           The requested settlement report ID does not exist or has not been imported.
         </p>
@@ -519,16 +1467,29 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                     </CardDescription>
                   </div>
 
-                  {/* Search Bar */}
-                  <div className="relative w-full sm:w-80">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search SKU, Order ID, NEFT, Invoice..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8 h-8 text-xs bg-background border-border"
-                    />
+                  {/* Search Bar & Export */}
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="relative w-full sm:w-72">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search SKU, Order, NEFT, Inv..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 h-8 text-xs bg-background border-border"
+                      />
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportOrders}
+                      className="h-8 px-2.5 text-xs bg-background cursor-pointer shrink-0 shadow-2xs gap-1"
+                      title="Export filtered transactions to Excel"
+                    >
+                      <Download className="h-3.5 w-3.5 text-muted-foreground" />
+                      Export
+                    </Button>
                   </div>
                 </div>
 
@@ -587,292 +1548,180 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                       </Select>
                     )}
 
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="h-7 text-xs w-[170px] bg-background">
-                        <ArrowUpDown className="h-3 w-3 mr-1 text-muted-foreground" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="text-xs">
-                        <SelectItem value="settlement_desc">Bank Settlement (High)</SelectItem>
-                        <SelectItem value="settlement_asc">Bank Settlement (Low)</SelectItem>
-                        <SelectItem value="sale_desc">Sale Amount (High)</SelectItem>
-                        <SelectItem value="date_desc">Payment Date (Latest)</SelectItem>
-                        <SelectItem value="sku_asc">SKU (A–Z)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {(statusFilter !== "ALL" ||
+                      channelFilter !== "ALL" ||
+                      neftFilter !== "ALL" ||
+                      searchQuery.trim()) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setStatusFilter("ALL");
+                          setChannelFilter("ALL");
+                          setNeftFilter("ALL");
+                          setSearchQuery("");
+                        }}
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Reset
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
 
+              {/* TanStack Table View */}
               <CardContent className="p-0">
                 <div className="overflow-x-auto custom-scrollbar">
                   <Table className="text-xs w-full min-w-[1300px]">
                     <TableHeader className="bg-muted/40 font-semibold border-b border-border">
-                      <TableRow>
-                        <TableHead className="py-2.5 pl-4 w-[160px]">Payment & NEFT</TableHead>
-                        <TableHead className="py-2.5 w-[200px]">Order ID & Invoice</TableHead>
-                        <TableHead className="py-2.5 min-w-[160px]">Seller SKU</TableHead>
-                        <TableHead className="py-2.5 text-right w-[100px]">Sale Amount</TableHead>
-                        <TableHead className="py-2.5 text-right w-[110px]">MP Fees</TableHead>
-                        <TableHead className="py-2.5 text-right w-[90px]">Taxes</TableHead>
-                        <TableHead className="py-2.5 text-right w-[100px]">SPF / Refund</TableHead>
-                        <TableHead className="py-2.5 text-right w-[130px]">Bank Settlement</TableHead>
-                        <TableHead className="py-2.5 text-center w-[130px]">Weight & Zone</TableHead>
-                        <TableHead className="py-2.5 pr-4 text-center w-[120px]">Return Status</TableHead>
-                      </TableRow>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id} className="py-2.5">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.length === 0 ? (
+                      {table.getRowModel().rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                          <TableCell
+                            colSpan={orderColumns.length}
+                            className="text-center py-12 text-muted-foreground"
+                          >
                             No settled transactions match the selected filter criteria.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredOrders.map((o, idx) => {
-                          const isCustomerReturn =
-                            o.returnType?.toLowerCase().includes("customer") ||
-                            o.returnType?.toUpperCase() === "RVP";
-                          const isLogisticsReturn =
-                            o.returnType?.toLowerCase().includes("logistics") ||
-                            o.returnType?.toUpperCase() === "RTO";
-                          const isReplacement =
-                            o.additionalInformation?.toUpperCase().includes("REPLACEMENT");
-                          const isReturn = isCustomerReturn || isLogisticsReturn || o.refund < 0;
-
-                          return (
-                            <TableRow
-                              key={`${o.orderItemId}_${idx}`}
-                              className="hover:bg-muted/30 transition-colors border-b border-border/60 font-mono text-[11px]"
-                            >
-                              {/* 1. Payment & NEFT */}
-                              <TableCell className="py-2.5 pl-4">
-                                <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-semibold text-foreground block">
-                                      {o.paymentDate
-                                        ? new Date(o.paymentDate).toLocaleDateString("en-IN", {
-                                            day: "2-digit",
-                                            month: "short",
-                                            year: "numeric",
-                                          })
-                                        : "—"}
-                                    </span>
-                                    {o.neftType && (
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-[9px] px-1 py-0 h-3.5 uppercase ${
-                                          o.neftType.toLowerCase() === "prepaid"
-                                            ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
-                                            : "bg-purple-500/10 text-purple-600 border-purple-500/30"
-                                        }`}
-                                      >
-                                        {o.neftType}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span
-                                      className="text-[10px] text-muted-foreground block truncate max-w-[120px]"
-                                      title={o.neftId}
-                                    >
-                                      {o.neftId || "NEFT Pending"}
-                                    </span>
-                                    {o.neftId && (
-                                      <button
-                                        onClick={() => copyToClipboard(o.neftId!)}
-                                        className="text-muted-foreground hover:text-foreground cursor-pointer"
-                                        title="Copy NEFT ID"
-                                      >
-                                        {copiedId === o.neftId ? (
-                                          <Check className="h-2.5 w-2.5 text-emerald-500" />
-                                        ) : (
-                                          <Copy className="h-2.5 w-2.5" />
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </TableCell>
-
-                              {/* 2. Order ID & Item */}
-                              <TableCell className="py-2.5">
-                                <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-medium text-foreground block truncate max-w-[160px]" title={o.orderId}>
-                                      {o.orderId}
-                                    </span>
-                                    <button
-                                      onClick={() => copyToClipboard(o.orderId)}
-                                      className="text-muted-foreground hover:text-foreground cursor-pointer"
-                                      title="Copy Order ID"
-                                    >
-                                      {copiedId === o.orderId ? (
-                                        <Check className="h-2.5 w-2.5 text-emerald-500" />
-                                      ) : (
-                                        <Copy className="h-2.5 w-2.5" />
-                                      )}
-                                    </button>
-                                  </div>
-                                  {o.invoiceId && o.invoiceId !== "NA" && (
-                                    <span className="text-[10px] text-muted-foreground block truncate max-w-[180px]" title={o.invoiceId}>
-                                      Inv: {o.invoiceId}
-                                    </span>
-                                  )}
-                                  {o.orderDate && (
-                                    <span className="text-[9px] text-muted-foreground block">
-                                      Ord: {new Date(o.orderDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                                      {o.dispatchDate ? ` • Disp: ${new Date(o.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-
-                              {/* 3. SKU & Sub Category */}
-                              <TableCell className="py-2.5 font-bold text-foreground">
-                                <span className="truncate block max-w-[160px]" title={o.sellerSku}>
-                                  {o.sellerSku}
-                                </span>
-                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                  {o.productSubCategory && o.productSubCategory !== "NA" && (
-                                    <span className="text-[9px] text-muted-foreground font-normal lowercase">
-                                      {o.productSubCategory.replace(/_/g, " ")}
-                                    </span>
-                                  )}
-                                  {o.shopsyOrder?.toLowerCase() === "yes" && (
-                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 bg-violet-500/10 text-violet-600 border-violet-500/30">
-                                      Shopsy
-                                    </Badge>
-                                  )}
-                                  {isReplacement && (
-                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3 bg-blue-500/10 text-blue-600 border-blue-500/30">
-                                      Repl.
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-
-                              {/* 4. Sale Amount */}
-                              <TableCell className="py-2.5 text-right font-semibold text-foreground">
-                                ₹{o.saleAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                {o.totalOfferAmount > 0 && (
-                                  <span className="text-[9px] text-muted-foreground block font-normal">
-                                    Offer: -₹{o.totalOfferAmount}
-                                  </span>
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className="hover:bg-muted/30 transition-colors border-b border-border/60 font-mono text-[11px]"
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id} className="py-2.5">
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
                                 )}
                               </TableCell>
-
-                              {/* 5. Marketplace Fees */}
-                              <TableCell className="py-2.5 text-right font-medium text-rose-600 dark:text-rose-400">
-                                ₹{o.marketplaceFee.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                {o.reverseShippingFee < 0 && (
-                                  <span className="text-[9px] text-rose-500 block font-normal">
-                                    Rev: ₹{o.reverseShippingFee}
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              {/* 6. Taxes */}
-                              <TableCell className="py-2.5 text-right text-muted-foreground">
-                                ₹{o.taxes.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                              </TableCell>
-
-                              {/* 7. Protection Fund / Refund */}
-                              <TableCell className="py-2.5 text-right">
-                                {o.protectionFund > 0 ? (
-                                  <span className="text-emerald-600 font-semibold">+₹{o.protectionFund}</span>
-                                ) : o.refund < 0 ? (
-                                  <span className="text-rose-600 font-semibold">₹{o.refund}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">₹0</span>
-                                )}
-                              </TableCell>
-
-                              {/* 8. Bank Settlement Value */}
-                              <TableCell className="py-2.5 text-right">
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[11px] font-mono font-bold px-2 py-0.5 ${
-                                    o.bankSettlementValue > 0
-                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                                      : o.bankSettlementValue < 0
-                                      ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
-                                      : "bg-muted text-muted-foreground border-border"
-                                  }`}
-                                >
-                                  ₹{o.bankSettlementValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                </Badge>
-                                {(o.inputGstTcsCredits > 0 || o.incomeTaxCredits > 0) && (
-                                  <span className="text-[9px] text-blue-600 dark:text-blue-400 block font-normal mt-0.5">
-                                    +₹{(o.inputGstTcsCredits + o.incomeTaxCredits).toFixed(1)} cr
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              {/* 9. Weight & Zone */}
-                              <TableCell className="py-2.5 text-center text-[10px] text-muted-foreground">
-                                {o.deadWeight && o.deadWeight > 0 ? (
-                                  <div>
-                                    <span>{o.deadWeight} kg</span>
-                                    {o.shippingZone && o.shippingZone !== "NA" && ` • ${o.shippingZone}`}
-                                  </div>
-                                ) : o.shippingZone && o.shippingZone !== "NA" ? (
-                                  <span>{o.shippingZone}</span>
-                                ) : (
-                                  <span>—</span>
-                                )}
-                                {o.dimensions && o.dimensions !== "NA" && (
-                                  <span className="text-[9px] block text-muted-foreground truncate max-w-[120px]" title={o.dimensions}>
-                                    {o.dimensions}
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              {/* 10. Return Status */}
-                              <TableCell className="py-2.5 pr-4 text-center">
-                                {isCustomerReturn ? (
-                                  <div className="space-y-0.5">
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] font-mono px-1.5 py-0"
-                                    >
-                                      CUSTOMER RETURN
-                                    </Badge>
-                                    {o.itemReturnStatus && o.itemReturnStatus !== "NA" && (
-                                      <span className="text-[9px] text-muted-foreground block">
-                                        {o.itemReturnStatus}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : isLogisticsReturn ? (
-                                  <div className="space-y-0.5">
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 text-[9px] font-mono px-1.5 py-0"
-                                    >
-                                      LOGISTICS RETURN
-                                    </Badge>
-                                    {o.itemReturnStatus && o.itemReturnStatus !== "NA" && (
-                                      <span className="text-[9px] text-muted-foreground block">
-                                        {o.itemReturnStatus}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[9px] font-mono px-1.5 py-0"
-                                  >
-                                    DELIVERED
-                                  </Badge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
+                            ))}
+                          </TableRow>
+                        ))
                       )}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* TanStack Pagination Controls Footer */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border bg-muted/20 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>Rows per page:</span>
+                    <NativeSelect
+                      value={table.getState().pagination.pageSize}
+                      onChange={(e) => table.setPageSize(Number(e.target.value))}
+                      className="h-8 w-20 text-xs bg-background"
+                    >
+                      {[10, 25, 50, 100, 200].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <span className="hidden sm:inline">•</span>
+                    <span>
+                      Showing{" "}
+                      <strong className="text-foreground">
+                        {filteredOrders.length === 0
+                          ? 0
+                          : table.getState().pagination.pageIndex *
+                              table.getState().pagination.pageSize +
+                            1}
+                      </strong>{" "}
+                      to{" "}
+                      <strong className="text-foreground">
+                        {Math.min(
+                          (table.getState().pagination.pageIndex + 1) *
+                            table.getState().pagination.pageSize,
+                          filteredOrders.length
+                        )}
+                      </strong>{" "}
+                      of{" "}
+                      <strong className="text-foreground">
+                        {filteredOrders.length}
+                      </strong>{" "}
+                      transactions
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground mr-1">
+                      Page{" "}
+                      <strong className="text-foreground">
+                        {table.getPageCount() === 0
+                          ? 0
+                          : table.getState().pagination.pageIndex + 1}
+                      </strong>{" "}
+                      of{" "}
+                      <strong className="text-foreground">
+                        {table.getPageCount() || 1}
+                      </strong>
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => table.setPageIndex(0)}
+                        disabled={!table.getCanPreviousPage()}
+                        title="First Page"
+                      >
+                        <ChevronsLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => table.previousPage()}
+                        disabled={!table.getCanPreviousPage()}
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => table.nextPage()}
+                        disabled={!table.getCanNextPage()}
+                        title="Next Page"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() =>
+                          table.setPageIndex(table.getPageCount() - 1)
+                        }
+                        disabled={!table.getCanNextPage()}
+                        title="Last Page"
+                      >
+                        <ChevronsRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -946,7 +1795,7 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          {/* TAB 3: SKU Settlement Summary */}
+          {/* TAB 3: SKU Settlement Summary (TanStack Table) */}
           <TabsContent value="skus" className="space-y-4">
             <Card className="border border-border bg-card shadow-xs">
               <CardHeader className="p-4 border-b border-border">
@@ -954,65 +1803,167 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                   SKU Settlement Breakdown ({skuAggregates.length} SKUs)
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Consolidated financial settlement metrics aggregated per SKU.
+                  Consolidated financial settlement metrics aggregated per SKU with sorting and pagination.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto custom-scrollbar">
                   <Table className="text-xs w-full min-w-[960px]">
                     <TableHeader className="bg-muted/40 font-semibold border-b border-border">
-                      <TableRow>
-                        <TableHead className="py-2.5 pl-4 min-w-[180px]">Seller SKU</TableHead>
-                        <TableHead className="py-2.5 text-center w-[100px]">Orders / Qty</TableHead>
-                        <TableHead className="py-2.5 text-right w-[120px]">Gross Sales</TableHead>
-                        <TableHead className="py-2.5 text-right w-[120px]">Marketplace Fees</TableHead>
-                        <TableHead className="py-2.5 text-right w-[110px]">Taxes</TableHead>
-                        <TableHead className="py-2.5 text-right w-[130px]">Bank Settlement</TableHead>
-                        <TableHead className="py-2.5 pr-4 text-right w-[140px]">Realizable Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {skuAggregates.map((s) => (
-                        <TableRow
-                          key={s.sku}
-                          className="hover:bg-muted/30 transition-colors border-b border-border/60 font-mono text-[11px]"
-                        >
-                          <TableCell className="py-2.5 pl-4 font-bold text-foreground">
-                            {s.sku}
-                            {s.subCategory && s.subCategory !== "NA" && (
-                              <span className="text-[10px] text-muted-foreground font-normal block lowercase">
-                                {s.subCategory.replace(/_/g, " ")}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-center text-muted-foreground">
-                            {s.ordersCount} ({s.units} units)
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right font-semibold text-foreground">
-                            ₹{s.saleAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right font-medium text-rose-600 dark:text-rose-400">
-                            ₹{s.marketplaceFees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right text-muted-foreground">
-                            ₹{s.taxes.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                            ₹{s.bankSettlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-2.5 pr-4 text-right font-bold text-emerald-700 dark:text-emerald-300">
-                            ₹{s.realizableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </TableCell>
+                      {skuTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id} className="py-2.5">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          ))}
                         </TableRow>
                       ))}
+                    </TableHeader>
+                    <TableBody>
+                      {skuTable.getRowModel().rows.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={skuColumns.length}
+                            className="text-center py-12 text-muted-foreground"
+                          >
+                            No SKU records found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        skuTable.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className="hover:bg-muted/30 transition-colors border-b border-border/60 font-mono text-[11px]"
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id} className="py-2.5">
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
+                </div>
+
+                {/* SKU Pagination Footer */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border bg-muted/20 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>Rows per page:</span>
+                    <NativeSelect
+                      value={skuTable.getState().pagination.pageSize}
+                      onChange={(e) =>
+                        skuTable.setPageSize(Number(e.target.value))
+                      }
+                      className="h-8 w-20 text-xs bg-background"
+                    >
+                      {[10, 25, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <span className="hidden sm:inline">•</span>
+                    <span>
+                      Showing{" "}
+                      <strong className="text-foreground">
+                        {skuAggregates.length === 0
+                          ? 0
+                          : skuTable.getState().pagination.pageIndex *
+                              skuTable.getState().pagination.pageSize +
+                            1}
+                      </strong>{" "}
+                      to{" "}
+                      <strong className="text-foreground">
+                        {Math.min(
+                          (skuTable.getState().pagination.pageIndex + 1) *
+                            skuTable.getState().pagination.pageSize,
+                          skuAggregates.length
+                        )}
+                      </strong>{" "}
+                      of{" "}
+                      <strong className="text-foreground">
+                        {skuAggregates.length}
+                      </strong>{" "}
+                      SKUs
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground mr-1">
+                      Page{" "}
+                      <strong className="text-foreground">
+                        {skuTable.getPageCount() === 0
+                          ? 0
+                          : skuTable.getState().pagination.pageIndex + 1}
+                      </strong>{" "}
+                      of{" "}
+                      <strong className="text-foreground">
+                        {skuTable.getPageCount() || 1}
+                      </strong>
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => skuTable.setPageIndex(0)}
+                        disabled={!skuTable.getCanPreviousPage()}
+                        title="First Page"
+                      >
+                        <ChevronsLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => skuTable.previousPage()}
+                        disabled={!skuTable.getCanPreviousPage()}
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() => skuTable.nextPage()}
+                        disabled={!skuTable.getCanNextPage()}
+                        title="Next Page"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 bg-background cursor-pointer"
+                        onClick={() =>
+                          skuTable.setPageIndex(skuTable.getPageCount() - 1)
+                        }
+                        disabled={!skuTable.getCanNextPage()}
+                        title="Last Page"
+                      >
+                        <ChevronsRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* TAB 4: GST Fee Details */}
+          {/* TAB 4: GST Fee Details (TanStack Table) */}
           <TabsContent value="gst" className="space-y-4">
             <Card className="border border-border bg-card shadow-xs">
               <CardHeader className="p-4 border-b border-border">
@@ -1027,60 +1978,157 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                 <div className="overflow-x-auto custom-scrollbar">
                   <Table className="text-xs w-full min-w-[900px]">
                     <TableHeader className="bg-muted/40 font-semibold border-b border-border">
-                      <TableRow>
-                        <TableHead className="py-2.5 pl-4 w-[180px]">Fee Name</TableHead>
-                        <TableHead className="py-2.5 w-[140px]">Service Type</TableHead>
-                        <TableHead className="py-2.5 w-[180px]">Reference / Item ID</TableHead>
-                        <TableHead className="py-2.5 text-right w-[110px]">Fee Amount</TableHead>
-                        <TableHead className="py-2.5 text-right w-[90px]">CGST</TableHead>
-                        <TableHead className="py-2.5 text-right w-[90px]">SGST</TableHead>
-                        <TableHead className="py-2.5 text-right w-[90px]">IGST</TableHead>
-                        <TableHead className="py-2.5 pr-4 text-right w-[110px]">Total GST</TableHead>
-                      </TableRow>
+                      {gstTable.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id} className="py-2.5">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
                     </TableHeader>
                     <TableBody>
-                      {gstDetails.length === 0 ? (
+                      {gstTable.getRowModel().rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                          <TableCell
+                            colSpan={gstColumns.length}
+                            className="text-center py-12 text-muted-foreground"
+                          >
                             No GST detail records found in this settlement workbook.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        gstDetails.map((g, idx) => (
+                        gstTable.getRowModel().rows.map((row) => (
                           <TableRow
-                            key={idx}
+                            key={row.id}
                             className="hover:bg-muted/30 transition-colors border-b border-border/60 font-mono text-[11px]"
                           >
-                            <TableCell className="py-2.5 pl-4 font-bold text-foreground">
-                              {g.feeName}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-muted-foreground">
-                              {g.serviceType || "Order Item"}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-muted-foreground truncate max-w-[160px]" title={g.referenceId}>
-                              {g.referenceId || "—"}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-right font-semibold text-rose-600 dark:text-rose-400">
-                              ₹{g.feeAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-right text-muted-foreground">
-                              ₹{g.cgstAmount.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-right text-muted-foreground">
-                              ₹{g.sgstAmount.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="py-2.5 text-right text-muted-foreground">
-                              ₹{g.igstAmount.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="py-2.5 pr-4 text-right font-bold text-foreground">
-                              ₹{g.totalGst.toFixed(2)}
-                            </TableCell>
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id} className="py-2.5">
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
                           </TableRow>
                         ))
                       )}
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* GST Pagination Footer */}
+                {gstDetails.length > 10 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border bg-muted/20 p-3 text-xs">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span>Rows per page:</span>
+                      <NativeSelect
+                        value={gstTable.getState().pagination.pageSize}
+                        onChange={(e) =>
+                          gstTable.setPageSize(Number(e.target.value))
+                        }
+                        className="h-8 w-20 text-xs bg-background"
+                      >
+                        {[10, 25, 50, 100].map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                      <span className="hidden sm:inline">•</span>
+                      <span>
+                        Showing{" "}
+                        <strong className="text-foreground">
+                          {gstDetails.length === 0
+                            ? 0
+                            : gstTable.getState().pagination.pageIndex *
+                                gstTable.getState().pagination.pageSize +
+                              1}
+                        </strong>{" "}
+                        to{" "}
+                        <strong className="text-foreground">
+                          {Math.min(
+                            (gstTable.getState().pagination.pageIndex + 1) *
+                              gstTable.getState().pagination.pageSize,
+                            gstDetails.length
+                          )}
+                        </strong>{" "}
+                        of{" "}
+                        <strong className="text-foreground">
+                          {gstDetails.length}
+                        </strong>{" "}
+                        records
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground mr-1">
+                        Page{" "}
+                        <strong className="text-foreground">
+                          {gstTable.getPageCount() === 0
+                            ? 0
+                            : gstTable.getState().pagination.pageIndex + 1}
+                        </strong>{" "}
+                        of{" "}
+                        <strong className="text-foreground">
+                          {gstTable.getPageCount() || 1}
+                        </strong>
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 bg-background cursor-pointer"
+                          onClick={() => gstTable.setPageIndex(0)}
+                          disabled={!gstTable.getCanPreviousPage()}
+                          title="First Page"
+                        >
+                          <ChevronsLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 bg-background cursor-pointer"
+                          onClick={() => gstTable.previousPage()}
+                          disabled={!gstTable.getCanPreviousPage()}
+                          title="Previous Page"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 bg-background cursor-pointer"
+                          onClick={() => gstTable.nextPage()}
+                          disabled={!gstTable.getCanNextPage()}
+                          title="Next Page"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 bg-background cursor-pointer"
+                          onClick={() =>
+                            gstTable.setPageIndex(gstTable.getPageCount() - 1)
+                          }
+                          disabled={!gstTable.getCanNextPage()}
+                          title="Last Page"
+                        >
+                          <ChevronsRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1109,7 +2157,9 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                         className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20"
                       >
                         <div className="space-y-0.5">
-                          <span className="font-bold text-foreground uppercase">{a.type || "Ads Transaction"}</span>
+                          <span className="font-bold text-foreground uppercase">
+                            {a.type || "Ads Transaction"}
+                          </span>
                           <span className="text-[10px] text-muted-foreground block">
                             {a.campaignTransactionId || "No Campaign ID"}
                           </span>
@@ -1140,18 +2190,26 @@ export default function SettlementReportDynamicPage({ params }: PageProps) {
                 <CardContent className="p-4 space-y-3 font-mono text-xs">
                   <div className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20">
                     <span className="font-medium text-foreground">Marketplace Fee Rebate</span>
-                    <span className="font-bold text-emerald-600">₹{summary.mpFeeRebate.toFixed(2)}</span>
+                    <span className="font-bold text-emerald-600">
+                      ₹{summary.mpFeeRebate.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20">
                     <span className="font-medium text-foreground">Services Fees</span>
-                    <span className="font-bold text-rose-600">₹{summary.servicesFees.toFixed(2)}</span>
+                    <span className="font-bold text-rose-600">
+                      ₹{summary.servicesFees.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20">
                     <span className="font-medium text-foreground">Tax Settlement Adjustments</span>
-                    <span className="font-bold text-foreground">₹{summary.taxSettlement.toFixed(2)}</span>
+                    <span className="font-bold text-foreground">
+                      ₹{summary.taxSettlement.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400">Protection Fund (SPF) Claim</span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                      Protection Fund (SPF) Claim
+                    </span>
                     <span className="font-bold text-emerald-700 dark:text-emerald-400">
                       +₹{summary.protectionFundClaim.toFixed(2)}
                     </span>

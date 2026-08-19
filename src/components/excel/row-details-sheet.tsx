@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   Sheet,
   SheetContent,
@@ -30,12 +29,19 @@ export function RowDetailsSheet({
 }: RowDetailsSheetProps) {
   if (!row) return null;
 
-  const returnId = mapping.returnId ? formatCellValue(row[mapping.returnId]) : "Details";
-  const productTitle = mapping.product ? formatCellValue(row[mapping.product]) : "";
+  const returnId = mapping.returnId
+    ? formatCellValue(row[mapping.returnId])
+    : "Details";
+  const productTitle = mapping.product
+    ? formatCellValue(row[mapping.product])
+    : "";
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="sm:max-w-6xl w-full p-0 flex flex-col bg-background">
+      <SheetContent
+        side="right"
+        className="sm:max-w-6xl w-full p-0 flex flex-col bg-background"
+      >
         <SheetHeader className="p-6 border-b border-border bg-muted/20">
           <div className="space-y-1">
             <div className="flex items-center gap-2">

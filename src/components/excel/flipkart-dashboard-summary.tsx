@@ -1,22 +1,24 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { calculateFlipkartReturnMetrics } from "@/lib/excel-utils";
+import { ParsedSheet } from "@/types/excel";
 import {
-  Package,
   IndianRupee,
-  Truck,
+  Package,
   RotateCcw,
   TrendingDown,
+  Truck,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { ParsedSheet } from "@/types/excel";
-import { calculateFlipkartReturnMetrics } from "@/lib/excel-utils";
+import { useMemo } from "react";
 
 interface FlipkartDashboardSummaryProps {
   sheet: ParsedSheet;
 }
 
-export function FlipkartDashboardSummary({ sheet }: FlipkartDashboardSummaryProps) {
+export function FlipkartDashboardSummary({
+  sheet,
+}: FlipkartDashboardSummaryProps) {
   const metrics = useMemo(() => calculateFlipkartReturnMetrics(sheet), [sheet]);
 
   const formattedRefundValue = useMemo(() => {
@@ -91,7 +93,12 @@ export function FlipkartDashboardSummary({ sheet }: FlipkartDashboardSummaryProp
                 </span>
                 {metrics.totalReturns > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    ({((metrics.courierReturns / metrics.totalReturns) * 100).toFixed(1)}%)
+                    (
+                    {(
+                      (metrics.courierReturns / metrics.totalReturns) *
+                      100
+                    ).toFixed(1)}
+                    %)
                   </span>
                 )}
               </div>
@@ -119,7 +126,12 @@ export function FlipkartDashboardSummary({ sheet }: FlipkartDashboardSummaryProp
                 </span>
                 {metrics.totalReturns > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    ({((metrics.customerReturns / metrics.totalReturns) * 100).toFixed(1)}%)
+                    (
+                    {(
+                      (metrics.customerReturns / metrics.totalReturns) *
+                      100
+                    ).toFixed(1)}
+                    %)
                   </span>
                 )}
               </div>
